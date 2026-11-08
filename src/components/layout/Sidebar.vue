@@ -23,8 +23,8 @@
       </router-link>
     </nav>
 
-    <div class="nav-label">Management</div>
-    <nav>
+    <div v-if="manageMenu.length" class="nav-label">Management</div>
+    <nav v-if="manageMenu.length">
       <router-link
         v-for="item in manageMenu"
         :key="item.to"
@@ -37,8 +37,8 @@
       </router-link>
     </nav>
 
-    <div class="nav-label">System</div>
-    <nav>
+    <div v-if="auth.role === 'admin'" class="nav-label">System</div>
+    <nav v-if="auth.role === 'admin'">
       <router-link to="/admin/roles" class="nav-item" @click="$emit('close')">
         <Shield :size="19" /> Roles & Permissions
       </router-link>
@@ -61,6 +61,8 @@
 
 <script setup>
 import { toast } from 'vue-sonner'
+import { computed } from 'vue'
+import { useAuthStore } from '../../stores/auth'
 import {
   Eye, LayoutDashboard, CalendarDays, Stethoscope, Users, UserRound, UserPlus,
   Settings, FileText, Shield, BadgeDollarSign, HandCoins,
@@ -71,12 +73,16 @@ defineProps({
 })
 defineEmits(['close'])
 
-const mainMenu = [
-  { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/admin/appointments', label: 'Appointments', icon: CalendarDays, badge: 6 },
-]
+const auth = useAuthStore()
 
-const manageMenu = [
+const mainMenu = computed(() => auth.role === 'staff'
+  ? [{ to: '/staff/appointments', label: 'Appointments', icon: CalendarDays }]
+  : [
+      { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/admin/appointments', label: 'Appointments', icon: CalendarDays, badge: 6 },
+    ])
+
+const manageMenu = computed(() => auth.role === 'staff' ? [] : [
   { to: '/admin/doctors', label: 'Doctors', icon: Stethoscope },
   { to: '/admin/patients', label: 'Patients', icon: Users },
   { to: '/admin/staff', label: 'Staff', icon: UserRound },
@@ -85,5 +91,5 @@ const manageMenu = [
   { to: '/admin/investigation-receipts', label: 'Investigation Receipts', icon: FileText },
   { to: '/admin/technician-commission-rates', label: 'Technician Commission Rates', icon: BadgeDollarSign },
   { to: '/admin/technician-commissions', label: 'Technician Commissions', icon: HandCoins },
-]
+])
 </script>

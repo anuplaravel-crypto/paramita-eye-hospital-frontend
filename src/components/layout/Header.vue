@@ -6,7 +6,7 @@
     </button>
 
     <div>
-      <div class="crumb">Paramita / Admin</div>
+      <div class="crumb">Paramita / {{ roleLabel }}</div>
       <h2>{{ pageTitle }}</h2>
     </div>
 
@@ -67,6 +67,7 @@ const userMenu = ref(false)
 const search = ref('')
 
 const userName = computed(() => auth.user?.name || 'User')
+const roleLabel = computed(() => auth.role ? auth.role.charAt(0).toUpperCase() + auth.role.slice(1) : 'User')
 
 const pageTitle = computed(() => route.meta.title || 'Dashboard')
 

@@ -18,7 +18,7 @@ export const useAuthStore = defineStore('auth', {
       return (
         {
           admin: '/admin/dashboard',
-          staff: '/staff/dashboard',
+          staff: '/staff/appointments',
           doctor: '/doctor/dashboard',
         }[this.role] || '/dashboard'
       )

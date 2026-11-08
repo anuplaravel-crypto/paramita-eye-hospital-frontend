@@ -32,12 +32,21 @@ const routes = [
     ],
   },
 
+  {
+    path: '/staff',
+    component: () => import('../layouts/AdminLayout.vue'),
+    meta: { roles: ['staff'] },
+    children: [
+      { path: '', redirect: '/staff/appointments' },
+      { path: 'dashboard', redirect: '/staff/appointments' },
+      { path: 'appointments', name: 'staff.appointments', component: () => import('../pages/Appointments.vue'), meta: { title: 'Appointments' } },
+    ],
+  },
+
   /* Staff and doctor panels will receive their full layouts in a later phase. */
-  { path: '/staff/dashboard', name: 'staff.dashboard', component: () => import('../pages/Placeholder.vue'), meta: { title: 'Staff Panel', roles: ['staff'] } },
   { path: '/doctor/dashboard', name: 'doctor.dashboard', component: () => import('../pages/Placeholder.vue'), meta: { title: 'Doctor Panel', roles: ['doctor'] } },
   { path: '/dashboard', name: 'role.dashboard', component: () => import('../pages/Placeholder.vue'), meta: { title: 'Dashboard' } },
 
-  { path: '/staff', redirect: '/staff/dashboard' },
   { path: '/doctor', redirect: '/doctor/dashboard' },
   { path: '/:pathMatch(.*)*', redirect: () => '/login' },
 ]
