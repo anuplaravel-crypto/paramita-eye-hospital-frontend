@@ -43,11 +43,18 @@ const routes = [
     ],
   },
 
-  /* Staff and doctor panels will receive their full layouts in a later phase. */
-  { path: '/doctor/dashboard', name: 'doctor.dashboard', component: () => import('../pages/Placeholder.vue'), meta: { title: 'Doctor Panel', roles: ['doctor'] } },
+  {
+    path: '/doctor',
+    component: () => import('../layouts/AdminLayout.vue'),
+    meta: { roles: ['doctor'] },
+    children: [
+      { path: '', redirect: '/doctor/dashboard' },
+      { path: 'dashboard', name: 'doctor.dashboard', component: () => import('../pages/DoctorDashboard.vue'), meta: { title: 'Doctor Dashboard' } },
+    ],
+  },
+
   { path: '/dashboard', name: 'role.dashboard', component: () => import('../pages/Placeholder.vue'), meta: { title: 'Dashboard' } },
 
-  { path: '/doctor', redirect: '/doctor/dashboard' },
   { path: '/:pathMatch(.*)*', redirect: () => '/login' },
 ]
 

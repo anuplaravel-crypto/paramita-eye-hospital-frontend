@@ -75,14 +75,22 @@ defineEmits(['close'])
 
 const auth = useAuthStore()
 
-const mainMenu = computed(() => auth.role === 'staff'
-  ? [{ to: '/staff/appointments', label: 'Appointments', icon: CalendarDays }]
-  : [
+const mainMenu = computed(() => {
+  if (auth.role === 'staff') {
+    return [{ to: '/staff/appointments', label: 'Appointments', icon: CalendarDays }]
+  }
+
+  if (auth.role === 'doctor') {
+    return [{ to: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard }]
+  }
+
+  return [
       { to: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { to: '/admin/appointments', label: 'Appointments', icon: CalendarDays, badge: 6 },
-    ])
+  ]
+})
 
-const manageMenu = computed(() => auth.role === 'staff' ? [] : [
+const manageMenu = computed(() => auth.role !== 'admin' ? [] : [
   { to: '/admin/doctors', label: 'Doctors', icon: Stethoscope },
   { to: '/admin/patients', label: 'Patients', icon: Users },
   { to: '/admin/staff', label: 'Staff', icon: UserRound },
