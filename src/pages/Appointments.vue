@@ -3,28 +3,28 @@
     <header class="page-head">
       <div>
         <h1 class="page-title">Appointments</h1>
-        <p class="page-sub">Register patients and prepare prescription drafts for the doctor.</p>
+        <p class="page-sub">Register patients for the doctor’s appointment list.</p>
       </div>
       <button class="btn btn-primary intake-create" type="button" @click="openCreate">
-        <Plus :size="19" /> New Prescription Draft
+        <Plus :size="19" /> New Appointment
       </button>
     </header>
 
     <div class="intake-summary card">
-      <div class="summary-icon"><ClipboardPlus :size="22" /></div>
+      <div class="summary-icon"><CalendarDays :size="22" /></div>
       <div>
         <strong>{{ pagination.total || intakes.length }}</strong>
-        <span>Prescription drafts</span>
+        <span>Appointments</span>
       </div>
-      <p>Start with patient details. The doctor will complete the clinical prescription later.</p>
+      <p>New appointments are assigned to Dr. Hari Sankar Das.</p>
     </div>
 
     <div class="intake-toolbar">
       <label class="search-inline intake-search">
         <Search :size="19" />
-        <input v-model="search" type="search" placeholder="Search patient name, phone, or draft number" aria-label="Search prescription drafts" />
+        <input v-model="search" type="search" placeholder="Search patient name, phone, or serial number" aria-label="Search appointments" />
       </label>
-      <span class="muted">{{ pagination.total || 0 }} drafts</span>
+      <span class="muted">{{ pagination.total || 0 }} appointments</span>
     </div>
 
     <div v-if="pageError" class="intake-error" role="alert">
@@ -33,38 +33,38 @@
     </div>
 
     <div class="card intake-table-card">
-      <div v-if="loading" class="intake-empty" role="status">Loading prescription drafts…</div>
+      <div v-if="loading" class="intake-empty" role="status">Loading appointments…</div>
       <div v-else-if="!intakes.length" class="intake-empty">
-        <ClipboardPlus :size="40" />
-        <h3>{{ search ? 'No matching drafts' : 'No prescription drafts yet' }}</h3>
-        <p>{{ search ? 'Try another name, phone number, or draft number.' : 'Create a draft after entering the patient details.' }}</p>
+        <CalendarDays :size="40" />
+        <h3>{{ search ? 'No matching appointments' : 'No appointments yet' }}</h3>
+        <p>{{ search ? 'Try another name, phone number, or serial number.' : 'Create an appointment by entering the patient details.' }}</p>
         <button v-if="!search" class="btn btn-primary" type="button" @click="openCreate">
-          <Plus :size="17" /> Create First Draft
+          <Plus :size="17" /> Create First Appointment
         </button>
       </div>
       <div v-else class="table-wrap">
         <table class="table intake-table">
           <thead>
             <tr>
-              <th>Draft No.</th>
-              <th>Patient</th>
+              <th>Serial No.</th>
+              <th>Date</th>
+              <th>Patient Name</th>
               <th>Age</th>
               <th>Gender</th>
               <th>Phone</th>
-              <th>Created</th>
               <th>Status</th>
               <th class="actions-heading">Actions</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="intake in intakes" :key="intake.id">
-              <td><strong class="draft-number">{{ intake.prescription_number }}</strong></td>
-              <td><strong>{{ intake.patient_name }}</strong></td>
-              <td>{{ intake.patient_age }} yrs</td>
-              <td class="capitalize">{{ intake.patient_gender }}</td>
-              <td>{{ intake.patient_phone }}</td>
-              <td>{{ formatDate(intake.created_at) }}</td>
-              <td><span class="badge warning">Draft</span></td>
+            <tr v-for="intake in intakes" :key="intake.serial_number">
+              <td><strong class="draft-number">{{ intake.serial_number }}</strong></td>
+              <td>{{ formatDate(intake.date) }}</td>
+              <td><strong>{{ intake.name }}</strong></td>
+              <td>{{ intake.age }} yrs</td>
+              <td class="capitalize">{{ intake.gender }}</td>
+              <td>{{ intake.phone }}</td>
+              <td><span class="badge" :class="intake.status === 'in_progress' ? 'info' : 'warning'">{{ intake.status === 'in_progress' ? 'In progress' : 'Waiting' }}</span></td>
               <td class="intake-actions">
                 <button class="btn btn-outline btn-sm" type="button" @click="openView(intake)">
                   <Eye :size="15" /> View
@@ -72,7 +72,7 @@
                 <button class="btn btn-outline btn-sm" type="button" @click="openEdit(intake)">
                   <Pencil :size="15" /> Edit
                 </button>
-                <button class="icon-btn danger-action" type="button" :aria-label="`Delete ${intake.prescription_number}`" title="Delete draft" @click="deleteIntake(intake)">
+                <button class="icon-btn danger-action" type="button" :aria-label="`Delete appointment ${intake.serial_number}`" title="Delete appointment" @click="deleteIntake(intake)">
                   <Trash2 :size="16" />
                 </button>
               </td>
@@ -94,79 +94,50 @@
       <section class="intake-dialog card" role="dialog" aria-modal="true" aria-labelledby="intake-dialog-title">
         <header class="intake-dialog-head">
           <div>
-            <span class="dialog-kicker">{{ mode === 'view' ? 'Prescription Draft' : 'Patient Intake' }}</span>
+            <span class="dialog-kicker">{{ mode === 'view' ? 'Appointment details' : 'Patient appointment' }}</span>
             <h2 id="intake-dialog-title">{{ dialogTitle }}</h2>
-            <p>{{ mode === 'view' ? 'Review the patient details saved for this draft.' : 'Find an existing patient or enter details for a new patient.' }}</p>
+            <p>{{ mode === 'view' ? 'Review the appointment details.' : 'Enter the patient details for the doctor.' }}</p>
           </div>
           <button class="icon-btn" type="button" aria-label="Close" @click="closeDialog"><X :size="20" /></button>
         </header>
 
         <form class="intake-form" @submit.prevent="saveIntake" novalidate>
-          <div v-if="mode !== 'view'" class="patient-search-block">
-            <label for="patient-search">Find existing patient</label>
-            <div class="patient-search-input">
-              <Search :size="19" />
-              <input
-                id="patient-search"
-                v-model.trim="patientSearch"
-                type="search"
-                autocomplete="off"
-                placeholder="Search by patient name or mobile number"
-                aria-describedby="patient-search-help"
-                @focus="showPatientSuggestions = patientSuggestions.length > 0"
-              />
-            </div>
-            <small id="patient-search-help">Search with at least 2 characters. Select a result or enter a new patient's details below.</small>
-            <div v-if="showPatientSuggestions" class="patient-suggestions" role="listbox" aria-label="Matching patients">
-              <button v-for="patient in patientSuggestions" :key="patient.id" type="button" role="option" @click="selectPatient(patient)">
-                <span class="patient-suggestion-avatar"><UserRound :size="18" /></span>
-                <span><strong>{{ patient.name }}</strong><small>{{ patient.phone }} · {{ patient.age }} yrs · {{ formatGender(patient.gender) }}</small></span>
-              </button>
-              <p v-if="!patientSuggestions.length && !searchingPatients">No matching patient found.</p>
-            </div>
-          </div>
-
-          <div v-if="selectedPatient && mode !== 'view'" class="selected-patient-banner">
-            <span class="selected-patient-icon"><UserRound :size="20" /></span>
-            <span><strong>Existing patient selected</strong><small>{{ selectedPatient.name }} · {{ selectedPatient.phone }}</small></span>
-            <button class="btn btn-outline btn-sm" type="button" @click="clearSelectedPatient">Change</button>
-          </div>
-
           <div class="intake-fields-heading">
             <h3>Patient details</h3>
-            <span v-if="selectedPatient && mode !== 'view'" class="muted">You can update this patient's details</span>
+            <span class="muted">Date defaults to today</span>
           </div>
 
           <div class="intake-fields-grid">
+            <div class="intake-field">
+              <label for="appointment-date">Date <span class="required">*</span></label>
+              <input id="appointment-date" v-model="form.date" type="date" :readonly="mode === 'view'" :class="{ 'input-invalid': fieldErrors.date }" :aria-invalid="Boolean(fieldErrors.date)" :aria-describedby="fieldErrors.date ? 'appointment-date-error' : undefined" required />
+              <small v-if="fieldErrors.date" id="appointment-date-error" class="field-error">{{ fieldErrors.date }}</small>
+            </div>
             <div class="intake-field intake-field-name">
               <label for="patient-name">Patient name <span class="required">*</span></label>
-              <input id="patient-name" v-model.trim="form.patient_name" :readonly="mode === 'view' || (selectedPatient && !editPatientDetails)" :class="{ 'input-invalid': fieldErrors.patient_name }" :aria-invalid="Boolean(fieldErrors.patient_name)" :aria-describedby="fieldErrors.patient_name ? 'patient-name-error' : undefined" autocomplete="name" required />
-              <small v-if="fieldErrors.patient_name" id="patient-name-error" class="field-error">{{ fieldErrors.patient_name }}</small>
+              <input id="patient-name" v-model.trim="form.patient_name" :readonly="mode === 'view'" :class="{ 'input-invalid': fieldErrors.name }" :aria-invalid="Boolean(fieldErrors.name)" :aria-describedby="fieldErrors.name ? 'patient-name-error' : undefined" autocomplete="name" required />
+              <small v-if="fieldErrors.name" id="patient-name-error" class="field-error">{{ fieldErrors.name }}</small>
             </div>
             <div class="intake-field">
               <label for="patient-age">Age (years) <span class="required">*</span></label>
-              <input id="patient-age" v-model="form.patient_age" type="number" min="0" max="130" inputmode="numeric" :readonly="mode === 'view' || (selectedPatient && !editPatientDetails)" :class="{ 'input-invalid': fieldErrors.patient_age }" :aria-invalid="Boolean(fieldErrors.patient_age)" :aria-describedby="fieldErrors.patient_age ? 'patient-age-error' : undefined" required />
-              <small v-if="fieldErrors.patient_age" id="patient-age-error" class="field-error">{{ fieldErrors.patient_age }}</small>
+              <input id="patient-age" v-model="form.patient_age" type="number" min="0" max="130" inputmode="numeric" :readonly="mode === 'view'" :class="{ 'input-invalid': fieldErrors.age }" :aria-invalid="Boolean(fieldErrors.age)" :aria-describedby="fieldErrors.age ? 'patient-age-error' : undefined" required />
+              <small v-if="fieldErrors.age" id="patient-age-error" class="field-error">{{ fieldErrors.age }}</small>
             </div>
             <div class="intake-field">
               <label for="patient-gender">Gender <span class="required">*</span></label>
-              <select id="patient-gender" v-model="form.patient_gender" :disabled="mode === 'view' || (selectedPatient && !editPatientDetails)" :class="{ 'input-invalid': fieldErrors.patient_gender }" :aria-invalid="Boolean(fieldErrors.patient_gender)" :aria-describedby="fieldErrors.patient_gender ? 'patient-gender-error' : undefined" required>
+              <select id="patient-gender" v-model="form.patient_gender" :disabled="mode === 'view'" :class="{ 'input-invalid': fieldErrors.gender }" :aria-invalid="Boolean(fieldErrors.gender)" :aria-describedby="fieldErrors.gender ? 'patient-gender-error' : undefined" required>
                 <option value="">Select gender</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
                 <option value="other">Other</option>
               </select>
-              <small v-if="fieldErrors.patient_gender" id="patient-gender-error" class="field-error">{{ fieldErrors.patient_gender }}</small>
+              <small v-if="fieldErrors.gender" id="patient-gender-error" class="field-error">{{ fieldErrors.gender }}</small>
             </div>
             <div class="intake-field intake-field-phone">
               <label for="patient-phone">Phone number <span class="required">*</span></label>
-              <input id="patient-phone" v-model.trim="form.patient_phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="01XXXXXXXXX or +8801XXXXXXXXX" :readonly="mode === 'view' || (selectedPatient && !editPatientDetails)" :class="{ 'input-invalid': fieldErrors.patient_phone }" :aria-invalid="Boolean(fieldErrors.patient_phone)" :aria-describedby="fieldErrors.patient_phone ? 'patient-phone-error' : undefined" required />
-              <small v-if="fieldErrors.patient_phone" id="patient-phone-error" class="field-error">{{ fieldErrors.patient_phone }}</small>
+              <input id="patient-phone" v-model.trim="form.patient_phone" type="tel" inputmode="tel" autocomplete="tel" placeholder="01XXXXXXXXX or +8801XXXXXXXXX" :readonly="mode === 'view'" :class="{ 'input-invalid': fieldErrors.phone }" :aria-invalid="Boolean(fieldErrors.phone)" :aria-describedby="fieldErrors.phone ? 'patient-phone-error' : undefined" required />
+              <small v-if="fieldErrors.phone" id="patient-phone-error" class="field-error">{{ fieldErrors.phone }}</small>
             </div>
-          </div>
-
-          <div v-if="selectedPatient && mode !== 'view' && !editPatientDetails" class="edit-patient-note">
-            <button class="text-button" type="button" @click="editPatientDetails = true">Edit patient details</button>
           </div>
 
           <div v-if="pageError" class="intake-error form-error" role="alert">{{ pageError }}</div>
@@ -174,12 +145,12 @@
           <footer class="intake-dialog-foot">
             <button class="btn btn-outline intake-secondary" type="button" @click="closeDialog">{{ mode === 'view' ? 'Close' : 'Cancel' }}</button>
             <template v-if="mode === 'view'">
-              <button class="btn btn-primary intake-primary" type="button" @click="openEdit(selectedIntake)"><Pencil :size="17" /> Edit Draft</button>
+              <button class="btn btn-primary intake-primary" type="button" @click="openEdit(selectedIntake)"><Pencil :size="17" /> Edit Appointment</button>
             </template>
             <button v-else class="btn btn-primary intake-primary" type="submit" :disabled="saving">
               <LoaderCircle v-if="saving" :size="17" class="spin" />
               <Save v-else :size="17" />
-              {{ saving ? 'Saving…' : mode === 'edit' ? 'Save Changes' : 'Create Draft' }}
+              {{ saving ? 'Saving…' : mode === 'edit' ? 'Save Changes' : 'Create Appointment' }}
             </button>
           </footer>
         </form>
@@ -191,7 +162,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { ClipboardPlus, Eye, LoaderCircle, Pencil, Plus, Save, Search, Trash2, UserRound, X } from '@lucide/vue'
+import { CalendarDays, Eye, LoaderCircle, Pencil, Plus, Save, Search, Trash2, X } from '@lucide/vue'
 import api from '../api/axios'
 
 const intakes = ref([])
@@ -202,23 +173,15 @@ const pageError = ref('')
 const dialogOpen = ref(false)
 const mode = ref('create')
 const selectedIntake = ref(null)
-const selectedPatient = ref(null)
-const patientSearch = ref('')
-const patientSuggestions = ref([])
-const showPatientSuggestions = ref(false)
-const searchingPatients = ref(false)
-const editPatientDetails = ref(false)
 const fieldErrors = ref({})
 const pagination = reactive({ current_page: 1, last_page: 1, total: 0 })
-const form = reactive({ patient_name: '', patient_age: '', patient_gender: '', patient_phone: '' })
-let patientLookupTimer
+const form = reactive({ date: todayInput(), patient_name: '', patient_age: '', patient_gender: '', patient_phone: '' })
 let listSearchTimer
 
-const dialogTitle = computed(() => ({ create: 'Create Prescription Draft', edit: 'Edit Prescription Draft', view: selectedIntake.value?.prescription_number || 'View Prescription Draft' }[mode.value]))
+const dialogTitle = computed(() => ({ create: 'Create Appointment', edit: 'Edit Appointment', view: `Appointment #${selectedIntake.value?.serial_number || ''}` }[mode.value]))
 
 onMounted(loadIntakes)
 onBeforeUnmount(() => {
-  window.clearTimeout(patientLookupTimer)
   window.clearTimeout(listSearchTimer)
 })
 
@@ -230,22 +193,11 @@ watch(search, () => {
   }, 250)
 })
 
-watch(patientSearch, (query) => {
-  if (selectedPatient.value && query === selectedPatient.value.name) return
-  window.clearTimeout(patientLookupTimer)
-  if (query.trim().length < 2) {
-    patientSuggestions.value = []
-    showPatientSuggestions.value = false
-    return
-  }
-  patientLookupTimer = window.setTimeout(searchPatients, 300)
-})
-
 async function loadIntakes() {
   loading.value = true
   pageError.value = ''
   try {
-    const { data } = await api.get('/prescription-intakes', {
+    const { data } = await api.get('/appointments', {
       params: { search: search.value.trim() || undefined, page: pagination.current_page },
     })
     intakes.value = data.data || []
@@ -253,23 +205,9 @@ async function loadIntakes() {
     pagination.last_page = data.meta?.last_page || 1
     pagination.total = data.meta?.total || 0
   } catch (error) {
-    pageError.value = error.response?.data?.message || 'Prescription drafts could not be loaded.'
+    pageError.value = error.response?.data?.message || 'Appointments could not be loaded.'
   } finally {
     loading.value = false
-  }
-}
-
-async function searchPatients() {
-  searchingPatients.value = true
-  showPatientSuggestions.value = true
-  try {
-    const { data } = await api.get('/prescription-intakes/patients', { params: { search: patientSearch.value.trim() } })
-    patientSuggestions.value = data.data || []
-  } catch (error) {
-    patientSuggestions.value = []
-    pageError.value = error.response?.data?.message || 'Patient search is unavailable.'
-  } finally {
-    searchingPatients.value = false
   }
 }
 
@@ -282,86 +220,60 @@ function openCreate() {
 
 async function openEdit(intake) {
   try {
-    const { data } = await api.get(`/prescription-intakes/${intake.id}`)
+    const { data } = await api.get(`/appointments/${intake.serial_number}`)
     const record = data.data || data
     selectedIntake.value = record
     mode.value = 'edit'
-    selectedPatient.value = record.patient || null
-    patientSearch.value = record.patient_name
-    form.patient_name = record.patient_name
-    form.patient_age = String(record.patient_age)
-    form.patient_gender = record.patient_gender
-    form.patient_phone = record.patient_phone
-    editPatientDetails.value = false
+    form.date = record.date || todayInput()
+    form.patient_name = record.name
+    form.patient_age = String(record.age)
+    form.patient_gender = record.gender
+    form.patient_phone = record.phone
     fieldErrors.value = {}
     pageError.value = ''
     dialogOpen.value = true
   } catch (error) {
-    toast.error(error.response?.data?.message || 'The draft could not be opened.')
+    toast.error(error.response?.data?.message || 'The appointment could not be opened.')
   }
 }
 
 async function openView(intake) {
   try {
-    const { data } = await api.get(`/prescription-intakes/${intake.id}`)
+    const { data } = await api.get(`/appointments/${intake.serial_number}`)
     selectedIntake.value = data.data || data
     const record = selectedIntake.value
-    selectedPatient.value = record.patient || null
-    form.patient_name = record.patient_name
-    form.patient_age = String(record.patient_age)
-    form.patient_gender = record.patient_gender
-    form.patient_phone = record.patient_phone
+    form.date = record.date || todayInput()
+    form.patient_name = record.name
+    form.patient_age = String(record.age)
+    form.patient_gender = record.gender
+    form.patient_phone = record.phone
     mode.value = 'view'
     fieldErrors.value = {}
     pageError.value = ''
     dialogOpen.value = true
   } catch (error) {
-    toast.error(error.response?.data?.message || 'The draft could not be opened.')
+    toast.error(error.response?.data?.message || 'The appointment could not be opened.')
   }
-}
-
-function selectPatient(patient) {
-  selectedPatient.value = patient
-  patientSearch.value = patient.name
-  form.patient_name = patient.name
-  form.patient_age = String(patient.age)
-  form.patient_gender = patient.gender
-  form.patient_phone = patient.phone
-  showPatientSuggestions.value = false
-  editPatientDetails.value = false
-  clearFieldErrors()
-}
-
-function clearSelectedPatient() {
-  selectedPatient.value = null
-  patientSearch.value = ''
-  form.patient_name = ''
-  form.patient_age = ''
-  form.patient_gender = ''
-  form.patient_phone = ''
-  patientSuggestions.value = []
-  editPatientDetails.value = false
-  clearFieldErrors()
 }
 
 async function saveIntake() {
   fieldErrors.value = {}
   pageError.value = ''
   const payload = {
-    patient_id: selectedPatient.value?.id || undefined,
-    patient_name: form.patient_name.trim(),
-    patient_age: form.patient_age === '' ? '' : Number(form.patient_age),
-    patient_gender: form.patient_gender,
-    patient_phone: form.patient_phone.trim(),
+    date: form.date,
+    name: form.patient_name.trim(),
+    age: form.patient_age === '' ? '' : Number(form.patient_age),
+    gender: form.patient_gender,
+    phone: form.patient_phone.trim(),
   }
   saving.value = true
   try {
     if (mode.value === 'edit') {
-      await api.put(`/prescription-intakes/${selectedIntake.value.id}`, payload)
-      toast.success('Prescription draft updated successfully.')
+      await api.put(`/appointments/${selectedIntake.value.serial_number}`, payload)
+      toast.success('Appointment updated successfully.')
     } else {
-      await api.post('/prescription-intakes', payload)
-      toast.success('Prescription draft created successfully.')
+      await api.post('/appointments', payload)
+      toast.success('Appointment created successfully.')
     }
     closeDialog()
     pagination.current_page = 1
@@ -371,7 +283,7 @@ async function saveIntake() {
     if (response?.errors) {
       fieldErrors.value = Object.fromEntries(Object.entries(response.errors).map(([key, messages]) => [key, messages[0]]))
     } else {
-      pageError.value = response?.message || 'The prescription draft could not be saved.'
+      pageError.value = response?.message || 'The appointment could not be saved.'
     }
   } finally {
     saving.value = false
@@ -379,14 +291,14 @@ async function saveIntake() {
 }
 
 async function deleteIntake(intake) {
-  if (!window.confirm(`Delete prescription draft ${intake.prescription_number} for ${intake.patient_name}?`)) return
+  if (!window.confirm(`Delete appointment ${intake.serial_number} for ${intake.name}?`)) return
   try {
-    await api.delete(`/prescription-intakes/${intake.id}`)
-    toast.success('Prescription draft deleted successfully.')
+    await api.delete(`/appointments/${intake.serial_number}`)
+    toast.success('Appointment deleted successfully.')
     if (intakes.value.length === 1 && pagination.current_page > 1) pagination.current_page -= 1
     await loadIntakes()
   } catch (error) {
-    toast.error(error.response?.data?.message || 'The prescription draft could not be deleted.')
+    toast.error(error.response?.data?.message || 'The appointment could not be deleted.')
   }
 }
 
@@ -396,11 +308,7 @@ function changePage(page) {
 }
 
 function resetForm() {
-  selectedPatient.value = null
-  patientSearch.value = ''
-  patientSuggestions.value = []
-  showPatientSuggestions.value = false
-  editPatientDetails.value = false
+  form.date = todayInput()
   form.patient_name = ''
   form.patient_age = ''
   form.patient_gender = ''
@@ -411,20 +319,24 @@ function resetForm() {
 
 function closeDialog() {
   dialogOpen.value = false
-  showPatientSuggestions.value = false
-}
-
-function clearFieldErrors() {
-  fieldErrors.value = {}
 }
 
 function formatDate(value) {
   if (!value) return '—'
-  return new Intl.DateTimeFormat('en-BD', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(value))
+  return new Intl.DateTimeFormat('en-BD', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(`${value}T00:00:00`))
 }
 
 function formatGender(value) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : '—'
+}
+
+function todayInput() {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+
+  return `${year}-${month}-${day}`
 }
 </script>
 

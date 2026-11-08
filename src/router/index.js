@@ -23,7 +23,7 @@ const routes = [
       { path: 'doctors', name: 'admin.doctors', component: () => import('../pages/Doctors.vue'), meta: { title: 'Doctors' } },
       { path: 'staff', name: 'admin.staff', component: () => import('../pages/Staff.vue'), meta: { title: 'Staff' } },
       { path: 'users', name: 'admin.users', component: () => import('../pages/Users.vue'), meta: { title: 'User Management' } },
-      { path: 'patients', name: 'admin.patients', component: () => import('../pages/Patients.vue'), meta: { title: 'Patients' } },
+      { path: 'patients', redirect: '/admin/appointments' },
       { path: 'roles', name: 'admin.roles', component: () => import('../pages/Roles.vue'), meta: { title: 'Roles & Permissions' } },
       { path: 'investigations', name: 'admin.investigations', component: () => import('../pages/Investigations.vue'), meta: { title: 'Investigations' } },
       { path: 'investigation-receipts', name: 'admin.investigation-receipts', component: () => import('../pages/InvestigationReceipts.vue'), meta: { title: 'Investigation Receipts' } },
@@ -50,6 +50,8 @@ const routes = [
     children: [
       { path: '', redirect: '/doctor/dashboard' },
       { path: 'dashboard', name: 'doctor.dashboard', component: () => import('../pages/DoctorDashboard.vue'), meta: { title: 'Doctor Dashboard' } },
+      { path: 'my-appointments', name: 'doctor.appointments', component: () => import('../pages/DoctorAppointments.vue'), meta: { title: 'My Appointments' } },
+      { path: 'my-appointments/:serialNumber', name: 'doctor.appointment', component: () => import('../pages/DoctorAppointment.vue'), meta: { title: 'Appointment Details' } },
     ],
   },
 

@@ -46,7 +46,8 @@
       <div class="empty schedule-empty">
         <div class="empty-icon"><CalendarDays :size="22" /></div>
         <h3>No schedule to show</h3>
-        <p>There are no appointment details available for your dashboard yet.</p>
+        <p>Open your appointment list to review patients assigned to you.</p>
+        <RouterLink class="btn btn-outline btn-sm" :to="{ name: 'doctor.appointments' }">View My Appointments</RouterLink>
       </div>
     </section>
   </div>

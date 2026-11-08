@@ -64,7 +64,7 @@ import { toast } from 'vue-sonner'
 import { computed } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import {
-  Eye, LayoutDashboard, CalendarDays, Stethoscope, Users, UserRound, UserPlus,
+  Eye, LayoutDashboard, CalendarDays, Stethoscope, UserRound, UserPlus,
   Settings, FileText, Shield, BadgeDollarSign, HandCoins,
 } from '@lucide/vue'
 
@@ -81,7 +81,10 @@ const mainMenu = computed(() => {
   }
 
   if (auth.role === 'doctor') {
-    return [{ to: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard }]
+    return [
+      { to: '/doctor/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+      { to: '/doctor/my-appointments', label: 'My Appointments', icon: CalendarDays },
+    ]
   }
 
   return [
@@ -92,7 +95,6 @@ const mainMenu = computed(() => {
 
 const manageMenu = computed(() => auth.role !== 'admin' ? [] : [
   { to: '/admin/doctors', label: 'Doctors', icon: Stethoscope },
-  { to: '/admin/patients', label: 'Patients', icon: Users },
   { to: '/admin/staff', label: 'Staff', icon: UserRound },
   { to: '/admin/users', label: 'Users', icon: UserPlus },
   { to: '/admin/investigations', label: 'Investigations', icon: FileText },
