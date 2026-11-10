@@ -48,7 +48,7 @@
             <tr v-for="appointment in appointments" :key="appointment.serial_number">
               <td><strong class="serial-number">{{ appointment.serial_number }}</strong></td>
               <td>{{ formatDate(appointment.date) }}</td>
-              <td><strong>{{ appointment.name }}</strong></td>
+              <td><strong class="capitalize">{{ appointment.name }}</strong></td>
               <td>{{ appointment.age }} yrs</td>
               <td class="capitalize">{{ appointment.gender }}</td>
               <td>{{ appointment.phone }}</td>
