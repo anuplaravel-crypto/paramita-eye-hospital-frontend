@@ -35,8 +35,13 @@
         </span>
         <div class="avatar lg" :style="{ background: grad(user.name) }">{{ initials(user.name) }}</div>
         <h4>{{ user.name }}</h4>
-        <div class="spec">Doctor</div>
-        <div class="qual">{{ user.email }}</div>
+        <div class="spec">{{ user.specialty || 'Specialty not set' }}</div>
+        <div class="qual">{{ user.qualifications || 'Qualifications not set' }}</div>
+        <div class="doctor-contact">BMDC: {{ user.bmdc_registration_number || 'Not provided' }}</div>
+        <div class="doctor-contact">
+          {{ user.years_of_experience ?? '—' }} years experience · {{ user.type ? user.type[0].toUpperCase() + user.type.slice(1) : 'Type not set' }}
+        </div>
+        <div class="doctor-contact">{{ user.email }}</div>
         <div class="doctor-contact">{{ user.phone || 'No phone number' }}</div>
         <div class="doctor-actions">
           <router-link class="btn btn-outline btn-sm" to="/admin/users">Manage User</router-link>

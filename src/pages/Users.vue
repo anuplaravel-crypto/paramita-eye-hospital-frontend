@@ -38,6 +38,7 @@
               <th>User</th>
               <th>Contact</th>
               <th>Role</th>
+              <th>Type</th>
               <th>Status</th>
               <th class="actions-heading">Actions</th>
             </tr>
@@ -57,6 +58,12 @@
               <td>
                 <span v-if="user.role" class="badge primary plain role-badge">{{ user.role.name }}</span>
                 <span v-else class="muted">No role</span>
+              </td>
+              <td>
+                <span v-if="user.role?.name?.toLowerCase() === 'doctor' && user.type" class="badge primary plain role-badge">
+                  {{ formatDoctorType(user.type) }}
+                </span>
+                <span v-else class="muted">—</span>
               </td>
               <td>
                 <span class="badge plain" :class="user.is_active ? 'success' : 'neutral'">
@@ -174,6 +181,44 @@
                 <small v-if="fieldErrors.role_id" id="user-role-error" class="field-error">{{ fieldErrors.role_id }}</small>
               </div>
 
+              <div v-if="isDoctorRole" class="doctor-profile-fields">
+                <h3 class="doctor-profile-heading">Doctor profile</h3>
+
+                <div class="field">
+                  <label for="user-specialty">Specialty <span class="required">*</span></label>
+                  <input id="user-specialty" v-model.trim="form.specialty" class="input" :class="{ 'input-invalid': fieldErrors.specialty }" type="text" maxlength="255" :readonly="readOnly" :aria-invalid="Boolean(fieldErrors.specialty)" :aria-describedby="fieldErrors.specialty ? 'user-specialty-error' : undefined" />
+                  <small v-if="fieldErrors.specialty" id="user-specialty-error" class="field-error">{{ fieldErrors.specialty }}</small>
+                </div>
+
+                <div class="field">
+                  <label for="user-qualifications">Qualifications <span class="required">*</span></label>
+                  <textarea id="user-qualifications" v-model.trim="form.qualifications" class="input" :class="{ 'input-invalid': fieldErrors.qualifications }" maxlength="5000" rows="3" :readonly="readOnly" :aria-invalid="Boolean(fieldErrors.qualifications)" :aria-describedby="fieldErrors.qualifications ? 'user-qualifications-error' : undefined" />
+                  <small v-if="fieldErrors.qualifications" id="user-qualifications-error" class="field-error">{{ fieldErrors.qualifications }}</small>
+                </div>
+
+                <div class="field">
+                  <label for="user-bmdc">BMDC registration number <span class="required">*</span></label>
+                  <input id="user-bmdc" v-model.trim="form.bmdc_registration_number" class="input" :class="{ 'input-invalid': fieldErrors.bmdc_registration_number }" type="text" maxlength="100" :readonly="readOnly" :aria-invalid="Boolean(fieldErrors.bmdc_registration_number)" :aria-describedby="fieldErrors.bmdc_registration_number ? 'user-bmdc-error' : undefined" />
+                  <small v-if="fieldErrors.bmdc_registration_number" id="user-bmdc-error" class="field-error">{{ fieldErrors.bmdc_registration_number }}</small>
+                </div>
+
+                <div class="field">
+                  <label for="user-experience">Years of experience <span class="required">*</span></label>
+                  <input id="user-experience" v-model="form.years_of_experience" class="input" :class="{ 'input-invalid': fieldErrors.years_of_experience }" type="number" min="0" max="100" inputmode="numeric" :readonly="readOnly" :aria-invalid="Boolean(fieldErrors.years_of_experience)" :aria-describedby="fieldErrors.years_of_experience ? 'user-experience-error' : undefined" />
+                  <small v-if="fieldErrors.years_of_experience" id="user-experience-error" class="field-error">{{ fieldErrors.years_of_experience }}</small>
+                </div>
+
+                <div class="field">
+                  <label for="user-doctor-type">Type <span class="required">*</span></label>
+                  <select id="user-doctor-type" v-model="form.type" class="input" :class="{ 'input-invalid': fieldErrors.type }" :disabled="readOnly" :aria-invalid="Boolean(fieldErrors.type)" :aria-describedby="fieldErrors.type ? 'user-doctor-type-error' : undefined">
+                    <option value="">Select a type</option>
+                    <option value="indoor">Indoor</option>
+                    <option value="outdoor">Outdoor</option>
+                  </select>
+                  <small v-if="fieldErrors.type" id="user-doctor-type-error" class="field-error">{{ fieldErrors.type }}</small>
+                </div>
+              </div>
+
               <div v-if="!readOnly" class="field">
                 <label for="user-password">
                   Password <span v-if="!editingUser" class="required">*</span>
@@ -245,6 +290,11 @@ const form = reactive({
   name: '',
   email: '',
   phone: '',
+  specialty: '',
+  qualifications: '',
+  bmdc_registration_number: '',
+  years_of_experience: '',
+  type: '',
   role_id: '',
   password: '',
   is_active: true,
@@ -259,6 +309,8 @@ const filteredUsers = computed(() => {
 })
 
 const readOnly = computed(() => dialogMode.value === 'view')
+const doctorRoleId = computed(() => roles.value.find((role) => role.name?.toLowerCase() === 'doctor')?.id ?? null)
+const isDoctorRole = computed(() => Number(form.role_id) === doctorRoleId.value)
 const dialogTitle = computed(() => {
   if (readOnly.value) return 'View User'
   return editingUser.value ? 'Edit User' : 'Create User'
@@ -270,6 +322,10 @@ const dialogDescription = computed(() => {
 
 function initials(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase()
+}
+
+function formatDoctorType(type) {
+  return type.charAt(0).toUpperCase() + type.slice(1)
 }
 
 async function loadData() {
@@ -300,6 +356,11 @@ function resetForm() {
   form.name = ''
   form.email = ''
   form.phone = ''
+  form.specialty = ''
+  form.qualifications = ''
+  form.bmdc_registration_number = ''
+  form.years_of_experience = ''
+  form.type = ''
   form.role_id = ''
   form.password = ''
   form.is_active = true
@@ -318,6 +379,11 @@ async function openUserDialog(user = null, mode = 'create') {
       form.name = response.data.data.name
       form.email = response.data.data.email
       form.phone = response.data.data.phone || ''
+      form.specialty = response.data.data.specialty || ''
+      form.qualifications = response.data.data.qualifications || ''
+      form.bmdc_registration_number = response.data.data.bmdc_registration_number || ''
+      form.years_of_experience = response.data.data.years_of_experience ?? ''
+      form.type = response.data.data.type || ''
       form.role_id = response.data.data.role?.id || ''
       form.is_active = response.data.data.is_active
     } catch {
@@ -343,6 +409,11 @@ async function saveUser() {
       name: form.name,
       email: form.email,
       phone: form.phone || null,
+      specialty: form.specialty || null,
+      qualifications: form.qualifications || null,
+      bmdc_registration_number: form.bmdc_registration_number || null,
+      years_of_experience: form.years_of_experience === '' ? null : Number(form.years_of_experience),
+      type: form.type || null,
       role_id: form.role_id,
       is_active: form.is_active,
     }
@@ -416,6 +487,11 @@ onMounted(loadData)
 .dialog-head p { margin-top: 3px; color: var(--muted); font-size: 12.5px; }
 .dialog-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 22px 24px 8px; }
 .dialog-body .field { margin-bottom: 20px; }
+.doctor-profile-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; padding: 16px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 13px; background: #f8faff; }
+.doctor-profile-heading { grid-column: 1 / -1; margin-bottom: 12px; color: var(--text); font-size: 14px; }
+.doctor-profile-fields .field { margin-bottom: 14px; }
+.doctor-profile-fields .field:nth-of-type(2) { grid-column: 1 / -1; }
+.doctor-profile-fields textarea { min-height: 76px; resize: vertical; }
 .required { color: #dc2626; font-weight: 800; }
 .input-invalid { border-color: #dc2626; }
 .input-invalid:focus { box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.12); }
@@ -427,6 +503,8 @@ onMounted(loadData)
   .dialog-backdrop { padding: 12px; }
   .dialog-head, .dialog-body { padding-right: 17px; padding-left: 17px; }
   .dialog-actions { padding-right: 17px; padding-left: 17px; }
+  .doctor-profile-fields { grid-template-columns: 1fr; padding: 13px; }
+  .doctor-profile-heading, .doctor-profile-fields .field:nth-of-type(2) { grid-column: auto; }
   .page-error { align-items: flex-start; flex-direction: column; }
 }
 </style>

@@ -12,7 +12,7 @@ export function useRoleUsers(roleName) {
 
     return users.value.filter((user) => {
       const matchesRole = user.role?.name?.toLowerCase() === roleName.toLowerCase()
-      const matchesSearch = [user.name, user.email, user.phone || '']
+      const matchesSearch = [user.name, user.email, user.phone || '', user.specialty || '', user.bmdc_registration_number || '']
         .some((value) => value.toLowerCase().includes(query))
 
       return matchesRole && matchesSearch
