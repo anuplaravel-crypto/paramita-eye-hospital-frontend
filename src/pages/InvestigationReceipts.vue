@@ -283,7 +283,7 @@
                     :aria-invalid="Boolean(fieldErrors.doctor_name)"
                     :aria-describedby="fieldErrors.doctor_name ? 'doctor-name-error' : undefined"
                   >
-                    <option value="">Select a doctor</option>
+                    <option value="" disabled>{{ availableDoctors.length ? 'Select a doctor' : 'No doctors configured for this type' }}</option>
                     <option v-for="doctor in availableDoctors" :key="doctor.id ?? doctor.name" :value="doctor.name">{{ doctor.name }}</option>
                   </select>
                   <small v-if="fieldErrors.doctor_name" id="doctor-name-error" class="field-error">{{ fieldErrors.doctor_name }}</small>
@@ -545,7 +545,6 @@ let nextItemKey = 0
 let nextItemNumber = 1
 let receiptNumberRequestId = 0
 let dailySummaryRequestId = 0
-const INDOOR_DOCTOR_NAME = 'Dr. Hari Sankar Das'
 const receipts = ref([])
 const investigations = ref([])
 const technicians = ref([])
@@ -605,9 +604,7 @@ const sortedReceipts = computed(() => {
     return comparison * direction
   })
 })
-const availableDoctors = computed(() => form.investigation_type === 'indoor'
-  ? [{ id: 'indoor-doctor', name: INDOOR_DOCTOR_NAME }]
-  : doctors.value)
+const availableDoctors = computed(() => doctors.value.filter((doctor) => doctor.type?.toLowerCase() === form.investigation_type))
 const readOnly = computed(() => dialogMode.value === 'view')
 const dialogTitle = computed(() => readOnly.value ? 'View Investigation Receipt' : editingReceipt.value ? 'Edit Investigation Receipt' : 'Create Investigation Receipt')
 const dialogDescription = computed(() => readOnly.value ? 'Review patient and investigation details.' : editingReceipt.value ? 'Update the receipt and its investigation items.' : 'Enter patient details and add one or more investigations.')
@@ -663,11 +660,9 @@ function itemError(index, field) {
 }
 
 function handleInvestigationTypeChange() {
-  if (form.investigation_type === 'indoor') {
-    form.doctor_name = INDOOR_DOCTOR_NAME
-  } else if (!doctors.value.some((doctor) => doctor.name === form.doctor_name)) {
-    form.doctor_name = ''
-  }
+  form.doctor_name = availableDoctors.value.some((doctor) => doctor.name === form.doctor_name)
+    ? form.doctor_name
+    : availableDoctors.value[0]?.name || ''
 
   if (editingReceipt.value) {
     if (form.investigation_type === editingReceipt.value.investigation_type) {
@@ -738,7 +733,7 @@ function resetForm() {
   form.investigation_type = 'indoor'
   form.receipt_number = ''
   form.patient_name = ''
-  form.doctor_name = INDOOR_DOCTOR_NAME
+  form.doctor_name = availableDoctors.value[0]?.name || ''
   form.contact_number = ''
   nextItemNumber = 1
   form.items = [makeItem()]
@@ -852,7 +847,9 @@ async function openDialog(receipt = null, mode = 'create') {
       form.investigation_type = data.investigation_type || 'indoor'
       form.receipt_number = data.receipt_number
       form.patient_name = data.patient_name
-      form.doctor_name = data.investigation_type === 'indoor' ? INDOOR_DOCTOR_NAME : data.doctor_name || ''
+      form.doctor_name = availableDoctors.value.some((doctor) => doctor.name === data.doctor_name)
+        ? data.doctor_name
+        : availableDoctors.value[0]?.name || ''
       form.contact_number = data.contact_number || ''
       form.items = data.items.map((item, index) => makeItem(item, index + 1))
       nextItemNumber = form.items.length + 1
@@ -1037,6 +1034,12 @@ async function deleteReceipt(receipt) {
     toast.error(error.response?.data?.errors?.receipt?.[0] || error.response?.data?.message || 'The receipt could not be deleted.')
   }
 }
+
+watch(availableDoctors, (matchingDoctors) => {
+  if (!matchingDoctors.some((doctor) => doctor.name === form.doctor_name)) {
+    form.doctor_name = matchingDoctors[0]?.name || ''
+  }
+})
 
 watch([selectedDate, investigationFilter], loadDailySummary)
 onMounted(loadData)
