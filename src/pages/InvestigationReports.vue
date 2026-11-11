@@ -17,6 +17,21 @@
       <article class="daily-summary-card report-technician-card"><span>Technician commission</span><strong>{{ formatAmount(summary.total_technician_commission) }}</strong></article>
       <article class="daily-summary-card report-count-card"><span>Investigation count</span><strong>{{ summary.total_investigation_count }}</strong><small>Matching date range and investigation</small></article>
       <article class="daily-summary-card actual-cash-card"><span>Actual cash in hand</span><strong>{{ formatAmount(summary.actual_cash_in_hand) }}</strong><small>After discounts and agent, doctor, and technician commissions</small></article>
+      <article class="daily-summary-card laminate-summary-card">
+        <span>Laminate &amp; Laminate*2</span>
+        <strong>{{ formatAmount(summary.total_laminate_amount) }}</strong>
+        <small>{{ summary.total_laminate_count }} laminate investigations</small>
+      </article>
+      <article class="daily-summary-card laminate-discount-card">
+        <span>Laminate discount amount</span>
+        <strong>{{ formatAmount(summary.total_laminate_discount) }}</strong>
+        <small>{{ summary.total_laminate_discount_count }} {{ summary.total_laminate_discount_count === 1 ? 'item with a regular or customer-requested discount' : 'items with a regular or customer-requested discount' }}</small>
+      </article>
+      <article class="daily-summary-card laminate-cash-card">
+        <span>Actual cash after laminate</span>
+        <strong>{{ formatAmount(summary.actual_cash_after_laminate) }}</strong>
+        <small>Actual cash in hand less laminate fees</small>
+      </article>
     </section>
 
     <div class="toolbar report-toolbar">
@@ -118,6 +133,11 @@ const summary = ref({
   total_doctor_commission: '0.00',
   total_technician_commission: '0.00',
   total_investigation_count: 0,
+  total_laminate_amount: '0.00',
+  total_laminate_discount: '0.00',
+  total_laminate_discount_count: 0,
+  total_laminate_count: 0,
+  actual_cash_after_laminate: '0.00',
 })
 const sortKey = ref('')
 const sortDirection = ref('asc')
@@ -273,6 +293,10 @@ onMounted(async () => { await loadData(); await loadSummary() })
 .report-cash-card > strong { color: #059669; }
 .actual-cash-card { border-left: 4px solid #059669; }
 .actual-cash-card > strong { color: #059669; }
+.laminate-summary-card { border-left: 4px solid #8b5cf6; }
+.laminate-discount-card { border-left: 4px solid #f97316; }
+.laminate-cash-card { border-left: 4px solid #0f766e; }
+.laminate-cash-card > strong { color: #0f766e; }
 .report-doctor-card { border-left: 4px solid #6366f1; }
 .report-technician-card { border-left: 4px solid #f59e0b; }
 .report-count-card { border-left: 4px solid #0ea5e9; }
