@@ -16,6 +16,7 @@
       <article class="daily-summary-card report-doctor-card"><span>Doctor commission</span><strong>{{ formatAmount(summary.total_doctor_commission) }}</strong></article>
       <article class="daily-summary-card report-technician-card"><span>Technician commission</span><strong>{{ formatAmount(summary.total_technician_commission) }}</strong></article>
       <article class="daily-summary-card report-count-card"><span>Investigation count</span><strong>{{ summary.total_investigation_count }}</strong><small>Matching date range and investigation</small></article>
+      <article class="daily-summary-card actual-cash-card"><span>Actual cash in hand</span><strong>{{ formatAmount(summary.actual_cash_in_hand) }}</strong><small>After discounts and agent, doctor, and technician commissions</small></article>
     </section>
 
     <div class="toolbar report-toolbar">
@@ -93,6 +94,7 @@ const summary = ref({
   total_agent_commission: '0.00',
   total_customer_requested_discount: '0.00',
   cash_in_hand: '0.00',
+  actual_cash_in_hand: '0.00',
   total_doctor_commission: '0.00',
   total_technician_commission: '0.00',
   total_investigation_count: 0,
@@ -194,6 +196,8 @@ onMounted(async () => { await loadData(); await loadSummary() })
 .report-discount-card { border-left: 4px solid #6366f1; }
 .report-cash-card { border-left: 4px solid #10b981; }
 .report-cash-card > strong { color: #059669; }
+.actual-cash-card { border-left: 4px solid #059669; }
+.actual-cash-card > strong { color: #059669; }
 .report-doctor-card { border-left: 4px solid #6366f1; }
 .report-technician-card { border-left: 4px solid #f59e0b; }
 .report-count-card { border-left: 4px solid #0ea5e9; }
