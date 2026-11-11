@@ -48,11 +48,14 @@
       <div v-else-if="!filteredReceipts.length" class="empty"><FileText :size="30" /><h4>No matching receipts</h4><p>Adjust the date range or report filters.</p></div>
       <div v-else class="table-wrap">
         <table class="table report-table">
-          <thead><tr><th>Sl</th><th>Date</th><th>Receipt No</th><th>Patient Name</th><th>Investigations</th><th>Actual Fees</th><th>Doctor Commission</th><th>Technician Commission</th></tr></thead>
+          <thead><tr><th>Sl</th><th>Date</th><th>Receipt No</th><th>Patient Name</th><th>Investigations</th><th>Actual Fees</th><th>Discount</th><th>Discount (Req)</th><th>Agent Com</th><th>Doctor Commission</th><th>Technician Com</th></tr></thead>
           <tbody>
             <tr v-for="(receipt, index) in filteredReceipts" :key="receipt.id">
               <td>{{ index + 1 }}</td><td>{{ formatDate(receipt.receipt_date) }}</td><td><strong>{{ receipt.receipt_number }}</strong></td><td>{{ receipt.patient_name || '—' }}</td>
               <td class="report-investigations">{{ investigationNames(receipt) }}</td><td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'price', 'actual_fees')) }}</td>
+              <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'discount', 'discount')) }}</td>
+              <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'customer_requested_discount', 'customer_requested_discount')) }}</td>
+              <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'agent_commission', 'agent_commission')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'doctor_commission', 'doctor_commission')) }}</td><td class="price-cell">{{ formatAmount(receiptTechnicianCommission(receipt)) }}</td>
             </tr>
           </tbody>
@@ -211,7 +214,19 @@ onMounted(async () => { await loadData(); await loadSummary() })
 .report-doctor-card { border-left: 4px solid #6366f1; }
 .report-count-card { border-left: 4px solid #0ea5e9; }
 .report-table-card { overflow: hidden; }
-.report-table { min-width: 1050px; }
+.report-table { min-width: 1150px; table-layout: fixed; }
+.report-table th, .report-table td { padding-right: 7px; padding-left: 7px; }
+.report-table th:nth-child(1) { width: 4%; }
+.report-table th:nth-child(2) { width: 8%; }
+.report-table th:nth-child(3) { width: 8%; }
+.report-table th:nth-child(4) { width: 9%; }
+.report-table th:nth-child(5) { width: 15%; }
+.report-table th:nth-child(6) { width: 9%; }
+.report-table th:nth-child(7) { width: 7%; }
+.report-table th:nth-child(8) { width: 10%; }
+.report-table th:nth-child(9) { width: 8%; }
+.report-table th:nth-child(10) { width: 12%; }
+.report-table th:nth-child(11) { width: 10%; }
 .report-investigations { min-width: 170px; max-width: 260px; white-space: normal; }
 @media (max-width: 900px) { .daily-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .daily-summary-grid { grid-template-columns: 1fr; } .report-toolbar { align-items: stretch; } .report-date-filter, .report-date-filter input, .report-investigation-filter, .report-filter-select { width: 100%; } .receipt-total-count { margin: 0; } }
