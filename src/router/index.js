@@ -27,6 +27,7 @@ const routes = [
       { path: 'roles', name: 'admin.roles', component: () => import('../pages/Roles.vue'), meta: { title: 'Roles & Permissions' } },
       { path: 'investigations', name: 'admin.investigations', component: () => import('../pages/Investigations.vue'), meta: { title: 'Investigations' } },
       { path: 'investigation-receipts', name: 'admin.investigation-receipts', component: () => import('../pages/InvestigationReceipts.vue'), meta: { title: 'Investigation Receipts' } },
+      { path: 'reports', name: 'admin.reports', component: () => import('../pages/InvestigationReports.vue'), meta: { title: 'Investigation Reports' } },
       { path: 'technician-commission-rates', name: 'admin.technician-commission-rates', component: () => import('../pages/TechnicianCommissionRates.vue'), meta: { title: 'Technician Commission Rates' } },
       { path: 'technician-commissions', name: 'admin.technician-commissions', component: () => import('../pages/TechnicianCommissions.vue'), meta: { title: 'Technician Commissions' } },
     ],

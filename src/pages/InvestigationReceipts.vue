@@ -16,8 +16,12 @@
         <input v-model="search" type="search" placeholder="Search receipts or patients..." aria-label="Search receipts or patients" />
       </label>
       <label class="date-filter">
-        <span>Summary date</span>
-        <input v-model="selectedDate" type="date" aria-label="Select summary date" />
+        <span>From date</span>
+        <input v-model="fromDate" type="date" aria-label="Select start date" />
+      </label>
+      <label class="date-filter">
+        <span>To date</span>
+        <input v-model="toDate" type="date" aria-label="Select end date" />
       </label>
       <select v-model="investigationFilter" class="input receipt-investigation-filter" aria-label="Filter receipts by investigation">
         <option value="all">All investigations</option>
@@ -27,7 +31,8 @@
       <span class="receipt-total-count">{{ filteredReceipts.length }} receipts</span>
     </div>
 
-    <section class="daily-summary-grid" aria-label="Daily investigation collection summary" aria-live="polite" :aria-busy="summaryLoading">
+    <div v-if="dateRangeError" class="summary-error" role="alert">{{ dateRangeError }}</div>
+    <section class="daily-summary-grid" aria-label="Investigation collection summary" aria-live="polite" :aria-busy="summaryLoading">
       <article class="daily-summary-card">
         <span>Total investigation collection</span>
         <strong>{{ formatAmount(dailySummary.total_investigation_collection) }}</strong>
@@ -48,7 +53,7 @@
       <article class="daily-summary-card investigation-count-summary-card">
         <span>Investigation count</span>
         <strong>{{ dailySummary.total_investigation_count }}</strong>
-        <small>Matching selected date and investigation</small>
+        <small>Matching selected date range and investigation</small>
       </article>
     </section>
     <div v-if="summaryError" class="summary-error" role="alert">
@@ -66,7 +71,7 @@
       <div v-else-if="!filteredReceipts.length" class="empty">
         <FileText :size="30" />
         <h4>{{ hasActiveReceiptFilters ? 'No matching receipts' : 'No receipts found' }}</h4>
-        <p>{{ hasActiveReceiptFilters ? 'Adjust the date, search, or investigation filter to see other receipts.' : 'Create a receipt to get started.' }}</p>
+        <p>{{ hasActiveReceiptFilters ? 'Adjust the date range, search, or investigation filter to see other receipts.' : 'Create a receipt to get started.' }}</p>
       </div>
       <div v-else class="table-wrap">
         <table class="table receipt-table">
@@ -553,7 +558,8 @@ const loading = ref(true)
 const saving = ref(false)
 const pageError = ref('')
 const search = ref('')
-const selectedDate = ref(currentDate())
+const fromDate = ref(currentDate())
+const toDate = ref(currentDate())
 const investigationFilter = ref('all')
 const sortKey = ref('')
 const sortDirection = ref('asc')
@@ -578,11 +584,17 @@ const form = reactive({ receipt_date: '', investigation_type: 'indoor', receipt_
 
 const investigationOptions = computed(() => [...investigations.value]
   .sort((first, second) => first.name.localeCompare(second.name)))
-const hasActiveReceiptFilters = computed(() => Boolean(selectedDate.value) || Boolean(search.value.trim()) || investigationFilter.value !== 'all')
+const dateRangeError = computed(() => {
+  if (!fromDate.value || !toDate.value) return 'Select both a from date and a to date.'
+  return fromDate.value > toDate.value ? 'From date must be on or before the to date.' : ''
+})
+const hasActiveReceiptFilters = computed(() => Boolean(fromDate.value || toDate.value || search.value.trim()) || investigationFilter.value !== 'all')
 const filteredReceipts = computed(() => {
   const query = search.value.trim().toLowerCase()
   return receipts.value.filter((receipt) => {
-    const matchesDate = !selectedDate.value || receipt.receipt_date === selectedDate.value
+    if (dateRangeError.value) return false
+    const receiptDate = receipt.receipt_date || ''
+    const matchesDate = (!fromDate.value || receiptDate >= fromDate.value) && (!toDate.value || receiptDate <= toDate.value)
     const matchesSearch = [receipt.receipt_number, receipt.patient_name, receipt.contact_number || '', receipt.investigation_type || '']
       .some((value) => String(value).toLowerCase().includes(query))
     const matchesInvestigation = investigationFilter.value === 'all'
@@ -802,14 +814,27 @@ async function loadData() {
 }
 
 async function loadDailySummary() {
+  if (dateRangeError.value) {
+    dailySummaryRequestId += 1
+    summaryLoading.value = false
+    summaryError.value = ''
+    dailySummary.value = {
+      total_investigation_collection: '0.00',
+      total_agent_commission: '0.00',
+      total_customer_requested_discount: '0.00',
+      cash_in_hand: '0.00',
+      total_investigation_count: 0,
+    }
+    return
+  }
   const requestId = ++dailySummaryRequestId
   summaryLoading.value = true
   summaryError.value = ''
 
   try {
-    const params = { date: selectedDate.value }
+    const params = { from_date: fromDate.value, to_date: toDate.value }
     if (investigationFilter.value !== 'all') params.investigation_id = Number(investigationFilter.value)
-    const response = await api.get('/admin/investigation-receipts/daily-summary', {
+    const response = await api.get('/admin/investigation-receipts/report-summary', {
       params,
     })
     if (requestId === dailySummaryRequestId) {
@@ -818,8 +843,8 @@ async function loadDailySummary() {
   } catch (error) {
     if (requestId === dailySummaryRequestId) {
       summaryError.value = error.response?.status
-        ? 'Daily totals could not be loaded (HTTP ' + error.response.status + ').'
-        : 'Daily totals could not be loaded. Check that Laravel is running.'
+        ? 'Receipt totals could not be loaded (HTTP ' + error.response.status + ').'
+        : 'Receipt totals could not be loaded. Check that Laravel is running.'
     }
   } finally {
     if (requestId === dailySummaryRequestId) {
@@ -1041,7 +1066,7 @@ watch(availableDoctors, (matchingDoctors) => {
   }
 })
 
-watch([selectedDate, investigationFilter], loadDailySummary)
+watch([fromDate, toDate, investigationFilter], loadDailySummary)
 onMounted(loadData)
 </script>
 
@@ -1049,6 +1074,8 @@ onMounted(loadData)
 .receipt-card { overflow: hidden; }
 .date-filter { display: inline-flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
 .date-filter input { min-height: 40px; padding: 0 11px; border: 1px solid var(--border); border-radius: 12px; color: #172033; background: #fff; font: inherit; }
+.date-filter { gap: 6px; }
+.date-filter input { width: 145px; }
 .receipt-investigation-filter { width: auto; min-width: 205px; }
 .daily-summary-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px; margin: 0 0 18px; }
 .daily-summary-card { display: flex; min-height: 98px; flex-direction: column; justify-content: center; gap: 8px; padding: 17px 20px; border: 1px solid var(--border); border-radius: 17px; background: #fff; box-shadow: 0 5px 16px rgba(27, 42, 74, .045); }
@@ -1095,7 +1122,7 @@ onMounted(loadData)
   .receipt-investigation-filter { width: 100%; }
   .daily-summary-grid { grid-template-columns: 1fr; }
   .date-filter { width: 100%; justify-content: space-between; }
-  .date-filter input { flex: 1; }
+  .date-filter input { width: auto; flex: 1; }
   .summary-error { align-items: flex-start; flex-direction: column; }
 }
 .price-cell { font-weight: 600; white-space: nowrap; }

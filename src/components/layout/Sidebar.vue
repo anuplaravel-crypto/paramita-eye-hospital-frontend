@@ -45,9 +45,9 @@
       <button class="nav-item" style="width: 100%" @click="toast.info('Settings coming soon!')">
         <Settings :size="19" /> Settings
       </button>
-      <button class="nav-item" style="width: 100%" @click="toast.info('Reports coming soon!')">
+      <router-link to="/admin/reports" class="nav-item" @click="$emit('close')">
         <FileText :size="19" /> Reports
-      </button>
+      </router-link>
     </nav>
 
     <div class="sidebar-foot">
