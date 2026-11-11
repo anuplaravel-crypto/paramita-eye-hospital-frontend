@@ -22,7 +22,18 @@
     <div class="card commission-card">
       <div v-if="loading" class="empty" role="status">Loading technician commissions...</div>
       <div v-else-if="!receiptGroups.length" class="empty"><HandCoins :size="30" /><h4>{{ hasActiveFilters ? 'No matching commission entries' : 'No technician commissions yet' }}</h4><p>{{ hasActiveFilters ? 'Adjust the filters to see other commission entries.' : 'Commission entries are created when investigation receipts are saved.' }}</p></div>
-      <div v-else class="table-wrap"><table class="table commission-table"><thead><tr><th>Sl</th><th>Receipt Date</th><th>Receipt No</th><th>Patient</th><th>Investigation</th><th>Technician</th><th>Discount</th><th>Commission</th><th>Status</th><th class="actions-heading">Action</th></tr></thead><tbody><tr v-for="(receipt, index) in receiptGroups" :key="receipt.id">
+      <div v-else class="table-wrap"><table class="table commission-table"><thead><tr>
+          <th>Sl</th>
+          <th :aria-sort="sortAria('date')"><button class="sort-button" type="button" @click="toggleSort('date')">Receipt Date <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('date') }}</span></button></th>
+          <th :aria-sort="sortAria('receipt_number')"><button class="sort-button" type="button" @click="toggleSort('receipt_number')">Receipt No <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('receipt_number') }}</span></button></th>
+          <th :aria-sort="sortAria('patient')"><button class="sort-button" type="button" @click="toggleSort('patient')">Patient <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('patient') }}</span></button></th>
+          <th :aria-sort="sortAria('investigation')"><button class="sort-button" type="button" @click="toggleSort('investigation')">Investigation <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('investigation') }}</span></button></th>
+          <th :aria-sort="sortAria('technician')"><button class="sort-button" type="button" @click="toggleSort('technician')">Technician <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('technician') }}</span></button></th>
+          <th :aria-sort="sortAria('discount')"><button class="sort-button" type="button" @click="toggleSort('discount')">Discount <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('discount') }}</span></button></th>
+          <th :aria-sort="sortAria('commission')"><button class="sort-button" type="button" @click="toggleSort('commission')">Commission <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('commission') }}</span></button></th>
+          <th :aria-sort="sortAria('status')"><button class="sort-button" type="button" @click="toggleSort('status')">Status <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('status') }}</span></button></th>
+          <th class="actions-heading">Action</th>
+        </tr></thead><tbody><tr v-for="(receipt, index) in sortedReceiptGroups" :key="receipt.id">
           <td>{{ index + 1 }}</td><td>{{ formatDate(receipt.receipt?.receipt_date) }}</td><td><strong>{{ receipt.receipt?.receipt_number || '—' }}</strong></td><td>{{ capitalizeWords(receipt.receipt?.patient_name) || '—' }}</td><td class="investigation-summary">{{ receipt.investigationSummary }}</td><td>{{ receipt.technicianSummary }}</td><td>{{ formatAmount(receipt.discountTotal) }}</td><td class="commission-amount">{{ formatAmount(receipt.commissionTotal) }}</td>
           <td><span class="status-pill" :class="statusClass(receipt.status)">{{ statusLabel(receipt.status) }}</span></td>
           <td class="action-cell"><button class="btn btn-outline btn-sm" type="button" @click="openReceiptDialog(receipt)"><Eye :size="14" /> View</button><button v-if="hasPendingPayment(receipt.id)" class="btn btn-primary btn-sm" type="button" @click="openReceiptPayment(receipt)"><Check :size="14" /> Mark Paid</button></td>
@@ -64,6 +75,8 @@ const statusFilter = ref('all')
 const fromDate = ref(currentDate())
 const toDate = ref(currentDate())
 const investigationFilter = ref('all')
+const sortKey = ref('')
+const sortDirection = ref('asc')
 const dialogOpen = ref(false)
 const receiptDialogOpen = ref(false)
 const selectedReceiptId = ref(null)
@@ -105,6 +118,20 @@ const filteredCommissions = computed(() => {
 })
 const allReceiptGroups = computed(() => groupByReceipt(commissions.value))
 const receiptGroups = computed(() => groupByReceipt(filteredCommissions.value))
+const sortedReceiptGroups = computed(() => {
+  const rows = [...receiptGroups.value]
+  if (!sortKey.value) return rows
+
+  const direction = sortDirection.value === 'asc' ? 1 : -1
+  return rows.sort((first, second) => {
+    const firstValue = receiptSortValue(first, sortKey.value)
+    const secondValue = receiptSortValue(second, sortKey.value)
+    const comparison = typeof firstValue === 'number' && typeof secondValue === 'number'
+      ? firstValue - secondValue
+      : String(firstValue ?? '').localeCompare(String(secondValue ?? ''), 'en', { numeric: true, sensitivity: 'base' })
+    return comparison * direction
+  })
+})
 const selectedReceipt = computed(() => allReceiptGroups.value.find((receipt) => String(receipt.id) === String(selectedReceiptId.value)) || null)
 
 function groupByReceipt(entries) {
@@ -142,6 +169,33 @@ function groupByReceipt(entries) {
   })
 }
 function capitalizeWords(value) { return String(value || '').trim().toLocaleLowerCase('en').replace(/(^|\s)(\p{L})/gu, (_, space, letter) => space + letter.toLocaleUpperCase('en')) }
+function receiptSortValue(receipt, key) {
+  switch (key) {
+    case 'date': return receipt.receipt?.receipt_date || ''
+    case 'receipt_number': return receipt.receipt?.receipt_number || ''
+    case 'patient': return receipt.receipt?.patient_name || ''
+    case 'investigation': return receipt.investigationSummary || ''
+    case 'technician': return receipt.technicianSummary || ''
+    case 'discount': return receipt.discountTotal
+    case 'commission': return receipt.commissionTotal
+    case 'status': return receipt.status || ''
+    default: return ''
+  }
+}
+function toggleSort(key) {
+  if (sortKey.value === key) sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  else {
+    sortKey.value = key
+    sortDirection.value = 'asc'
+  }
+}
+function sortIndicator(key) {
+  if (sortKey.value !== key) return '↕'
+  return sortDirection.value === 'asc' ? '↑' : '↓'
+}
+function sortAria(key) {
+  return sortKey.value !== key ? 'none' : sortDirection.value === 'asc' ? 'ascending' : 'descending'
+}
 function formatAmount(value) { return new Intl.NumberFormat('en-BD', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(value || 0)) }
 function formatDate(value) {
   if (!value) return '—'
@@ -210,8 +264,12 @@ onMounted(loadCommissions)
 .summary-card { display: grid; gap: 5px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 16px; background: #fff; box-shadow: 0 4px 12px rgba(15,23,42,.04); }
 .summary-card span { color: var(--muted); font-size: 12px; font-weight: 600; }.summary-card strong { color: #172033; font-size: 21px; }.summary-card small { color: var(--muted); font-size: 11px; }
 .pending-card { border-left: 4px solid #f59e0b; }.paid-card { border-left: 4px solid #10b981; }.investigation-card { border-left: 4px solid #6366f1; }
-.commission-toolbar { gap: 12px; }.status-filter { width: auto; min-width: 165px; }.commission-date-filter { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 600; }.date-filter { width: auto; min-width: 145px; }.investigation-filter { width: auto; min-width: 185px; max-width: 240px; }.commission-card { overflow: hidden; }.commission-table { min-width: 1200px; }.investigation-summary { max-width: 280px; white-space: normal; }
+.commission-toolbar { gap: 12px; align-items: center; }.commission-toolbar .search-inline,.commission-toolbar .status-filter,.commission-toolbar .date-filter,.commission-toolbar .investigation-filter { height: 42px; }.status-filter { width: auto; min-width: 165px; }.commission-date-filter { display: flex; align-items: center; gap: 7px; height: 42px; color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }.date-filter { width: 145px; min-width: 145px; min-height: 42px; padding: 0 9px; }.investigation-filter { width: auto; min-width: 185px; max-width: 240px; }.commission-card { overflow: hidden; }.commission-table { min-width: 1200px; }.investigation-summary { max-width: 280px; white-space: normal; }
 .commission-amount { color: var(--primary); font-weight: 800; white-space: nowrap; }.commission-amount small { color: var(--muted); font-size: 10px; }.muted { color: var(--muted); font-size: 12px; }.action-cell { text-align: right; white-space: nowrap; }
+.sort-button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; text-transform: inherit; cursor: pointer; }
+.sort-button:hover, .sort-button:focus-visible { color: #475569; }
+.sort-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 3px; }
+.sort-indicator { color: #94a3b8; font-size: 13px; line-height: 1; }
 .status-pill { display: inline-flex; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }.status-pending { color: #92400e; background: #fffbeb; }.status-paid { color: #047857; background: #ecfdf5; }.status-free { color: #64748b; background: #f1f5f9; }
 .dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(15,23,42,.56); }.pay-dialog-backdrop { z-index: 120; }.receipt-details-dialog { display: flex; flex-direction: column; width: min(900px,100%); max-height: min(780px,calc(100vh - 40px)); overflow: hidden; }.receipt-patient-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 14px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 13px; background: #f8faff; }.receipt-patient-summary div { display: grid; gap: 4px; }.receipt-patient-summary span { color: var(--muted); font-size: 11px; }.receipt-patient-summary strong { overflow-wrap: anywhere; }.receipt-detail-table-wrap { overflow-x: auto; }.receipt-detail-table { min-width: 720px; }.pay-dialog { display: flex; flex-direction: column; width: min(600px,100%); max-height: min(780px,calc(100vh - 40px)); overflow: hidden; }.pay-dialog form { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
 .dialog-head { display: flex; flex: 0 0 auto; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--border); }.dialog-head h2 { font-size: 19px; }.dialog-head p { margin-top: 3px; color: var(--muted); font-size: 12px; }.dialog-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; }.field + .field { margin-top: 15px; }

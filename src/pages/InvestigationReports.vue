@@ -48,15 +48,31 @@
       <div v-else-if="!filteredReceipts.length" class="empty"><FileText :size="30" /><h4>No matching receipts</h4><p>Adjust the date range or report filters.</p></div>
       <div v-else class="table-wrap">
         <table class="table report-table">
-          <thead><tr><th>Sl</th><th>Date</th><th>Receipt No</th><th>Patient Name</th><th>Investigations</th><th>Actual Fees</th><th>Discount</th><th>Discount (Req)</th><th>Agent Com</th><th>Doctor Commission</th><th>Technician Com</th></tr></thead>
+          <thead>
+            <tr>
+              <th>Sl</th>
+              <th :aria-sort="sortAria('date')"><button class="sort-button" type="button" @click="toggleSort('date')">Date <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('date') }}</span></button></th>
+              <th :aria-sort="sortAria('receipt_number')"><button class="sort-button" type="button" @click="toggleSort('receipt_number')">Receipt No <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('receipt_number') }}</span></button></th>
+              <th :aria-sort="sortAria('patient_name')"><button class="sort-button" type="button" @click="toggleSort('patient_name')">Patient Name <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('patient_name') }}</span></button></th>
+              <th :aria-sort="sortAria('investigations')"><button class="sort-button" type="button" @click="toggleSort('investigations')">Investigations <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('investigations') }}</span></button></th>
+              <th :aria-sort="sortAria('actual_fees')"><button class="sort-button" type="button" @click="toggleSort('actual_fees')">Actual Fees <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('actual_fees') }}</span></button></th>
+              <th :aria-sort="sortAria('discount')"><button class="sort-button" type="button" @click="toggleSort('discount')">Discount <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('discount') }}</span></button></th>
+              <th :aria-sort="sortAria('requested_discount')"><button class="sort-button" type="button" @click="toggleSort('requested_discount')">Discount (Req) <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('requested_discount') }}</span></button></th>
+              <th :aria-sort="sortAria('agent_commission')"><button class="sort-button" type="button" @click="toggleSort('agent_commission')">Agent Com <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('agent_commission') }}</span></button></th>
+              <th :aria-sort="sortAria('doctor_commission')"><button class="sort-button" type="button" @click="toggleSort('doctor_commission')">Doc Com <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('doctor_commission') }}</span></button></th>
+              <th :aria-sort="sortAria('technician_commission')"><button class="sort-button" type="button" @click="toggleSort('technician_commission')">Techni Com <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('technician_commission') }}</span></button></th>
+              <th :aria-sort="sortAria('payable')"><button class="sort-button" type="button" @click="toggleSort('payable')">Payable <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('payable') }}</span></button></th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-for="(receipt, index) in filteredReceipts" :key="receipt.id">
+            <tr v-for="(receipt, index) in sortedReceipts" :key="receipt.id">
               <td>{{ index + 1 }}</td><td>{{ formatDate(receipt.receipt_date) }}</td><td><strong>{{ receipt.receipt_number }}</strong></td><td>{{ receipt.patient_name || '—' }}</td>
               <td class="report-investigations">{{ investigationNames(receipt) }}</td><td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'price', 'actual_fees')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'discount', 'discount')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'customer_requested_discount', 'customer_requested_discount')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'agent_commission', 'agent_commission')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'doctor_commission', 'doctor_commission')) }}</td><td class="price-cell">{{ formatAmount(receiptTechnicianCommission(receipt)) }}</td>
+              <td class="price-cell payable-cell">{{ formatAmount(receiptPayable(receipt)) }}</td>
             </tr>
           </tbody>
         </table>
@@ -102,6 +118,8 @@ const summary = ref({
   total_technician_commission: '0.00',
   total_investigation_count: 0,
 })
+const sortKey = ref('')
+const sortDirection = ref('asc')
 let summaryRequest = 0
 
 const dateRangeError = computed(() => fromDate.value && toDate.value && fromDate.value > toDate.value ? 'From date must be on or before the to date.' : '')
@@ -115,6 +133,20 @@ const filteredReceipts = computed(() => {
     const matchesInvestigation = investigationFilter.value === 'all' || (receipt.items || []).some((item) => String(item.investigation_id) === investigationFilter.value)
     const matchesTechnician = technicianFilter.value === 'all' || (receipt.items || []).some((item) => String(item.technician_id || '') === technicianFilter.value)
     return inRange && matchesType && matchesDoctor && matchesInvestigation && matchesTechnician
+  })
+})
+const sortedReceipts = computed(() => {
+  const rows = [...filteredReceipts.value]
+  if (!sortKey.value) return rows
+
+  const direction = sortDirection.value === 'asc' ? 1 : -1
+  return rows.sort((first, second) => {
+    const firstValue = receiptSortValue(first, sortKey.value)
+    const secondValue = receiptSortValue(second, sortKey.value)
+    const comparison = typeof firstValue === 'number' && typeof secondValue === 'number'
+      ? firstValue - secondValue
+      : String(firstValue ?? '').localeCompare(String(secondValue ?? ''), 'en', { numeric: true, sensitivity: 'base' })
+    return comparison * direction
   })
 })
 
@@ -143,8 +175,47 @@ function receiptAmount(receipt, key, fallback) {
 function receiptTechnicianCommission(receipt) {
   return matchingItems(receipt).reduce((sum, item) => sum + Number(item.technician_commission || 0), 0)
 }
+function receiptPayable(receipt) {
+  return matchingItems(receipt).reduce((sum, item) => sum
+    + Number(item.price || 0)
+    - Number(item.discount || 0)
+    - Number(item.customer_requested_discount || 0)
+    - Number(item.agent_commission || 0)
+    - Number(item.doctor_commission || 0)
+    - Number(item.technician_commission || 0), 0)
+}
 function investigationNames(receipt) {
   return matchingItems(receipt).map((item) => item.investigation?.name).filter(Boolean).join(', ') || '—'
+}
+function receiptSortValue(receipt, key) {
+  switch (key) {
+    case 'date': return receipt.receipt_date || ''
+    case 'receipt_number': return receipt.receipt_number || ''
+    case 'patient_name': return receipt.patient_name || ''
+    case 'investigations': return investigationNames(receipt)
+    case 'actual_fees': return receiptAmount(receipt, 'price', 'actual_fees')
+    case 'discount': return receiptAmount(receipt, 'discount', 'discount')
+    case 'requested_discount': return receiptAmount(receipt, 'customer_requested_discount', 'customer_requested_discount')
+    case 'agent_commission': return receiptAmount(receipt, 'agent_commission', 'agent_commission')
+    case 'doctor_commission': return receiptAmount(receipt, 'doctor_commission', 'doctor_commission')
+    case 'technician_commission': return receiptTechnicianCommission(receipt)
+    case 'payable': return receiptPayable(receipt)
+    default: return ''
+  }
+}
+function toggleSort(key) {
+  if (sortKey.value === key) sortDirection.value = sortDirection.value === 'asc' ? 'desc' : 'asc'
+  else {
+    sortKey.value = key
+    sortDirection.value = 'asc'
+  }
+}
+function sortIndicator(key) {
+  if (sortKey.value !== key) return '↕'
+  return sortDirection.value === 'asc' ? '↑' : '↓'
+}
+function sortAria(key) {
+  return sortKey.value !== key ? 'none' : sortDirection.value === 'asc' ? 'ascending' : 'descending'
 }
 
 async function loadData() {
@@ -214,19 +285,24 @@ onMounted(async () => { await loadData(); await loadSummary() })
 .report-doctor-card { border-left: 4px solid #6366f1; }
 .report-count-card { border-left: 4px solid #0ea5e9; }
 .report-table-card { overflow: hidden; }
-.report-table { min-width: 1150px; table-layout: fixed; }
+.report-table { min-width: 1200px; table-layout: fixed; }
 .report-table th, .report-table td { padding-right: 7px; padding-left: 7px; }
-.report-table th:nth-child(1) { width: 4%; }
-.report-table th:nth-child(2) { width: 8%; }
+.sort-button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; text-transform: inherit; cursor: pointer; }
+.sort-button:hover, .sort-button:focus-visible { color: #475569; }
+.sort-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 3px; }
+.sort-indicator { color: #94a3b8; font-size: 13px; line-height: 1; }
+.report-table th:nth-child(1) { width: 3%; }
+.report-table th:nth-child(2) { width: 7%; }
 .report-table th:nth-child(3) { width: 8%; }
 .report-table th:nth-child(4) { width: 9%; }
-.report-table th:nth-child(5) { width: 15%; }
-.report-table th:nth-child(6) { width: 9%; }
-.report-table th:nth-child(7) { width: 7%; }
-.report-table th:nth-child(8) { width: 10%; }
-.report-table th:nth-child(9) { width: 8%; }
-.report-table th:nth-child(10) { width: 12%; }
-.report-table th:nth-child(11) { width: 10%; }
+.report-table th:nth-child(5) { width: 17%; }
+.report-table th:nth-child(6) { width: 8%; }
+.report-table th:nth-child(7) { width: 6%; }
+.report-table th:nth-child(8) { width: 9%; }
+.report-table th:nth-child(9) { width: 7%; }
+.report-table th:nth-child(10) { width: 9%; }
+.report-table th:nth-child(11) { width: 8%; }
+.report-table th:nth-child(12) { width: 9%; }
 .report-investigations { min-width: 170px; max-width: 260px; white-space: normal; }
 @media (max-width: 900px) { .daily-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .daily-summary-grid { grid-template-columns: 1fr; } .report-toolbar { align-items: stretch; } .report-date-filter, .report-date-filter input, .report-investigation-filter, .report-filter-select { width: 100%; } .receipt-total-count { margin: 0; } }
