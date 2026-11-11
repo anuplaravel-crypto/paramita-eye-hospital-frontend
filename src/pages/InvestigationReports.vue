@@ -10,8 +10,11 @@
     <div v-if="dateRangeError" class="page-error" role="alert">{{ dateRangeError }}</div>
     <section class="daily-summary-grid report-summary-grid" aria-label="Investigation report totals" aria-live="polite" :aria-busy="summaryLoading">
       <article class="daily-summary-card"><span>Total investigation collection</span><strong>{{ formatAmount(summary.total_investigation_collection) }}</strong></article>
+      <article class="daily-summary-card commission-summary-card"><span>Total agent commission</span><strong>{{ formatAmount(summary.total_agent_commission) }}</strong></article>
+      <article class="daily-summary-card report-discount-card"><span>Customer request discount</span><strong>{{ formatAmount(summary.total_customer_requested_discount) }}</strong></article>
+      <article class="daily-summary-card report-cash-card"><span>Cash in hand</span><strong>{{ formatAmount(summary.cash_in_hand) }}</strong><small>Collection less agent commission and customer discount</small></article>
       <article class="daily-summary-card report-doctor-card"><span>Doctor commission</span><strong>{{ formatAmount(summary.total_doctor_commission) }}</strong></article>
-      <article class="daily-summary-card commission-summary-card"><span>Technician commission</span><strong>{{ formatAmount(summary.total_technician_commission) }}</strong></article>
+      <article class="daily-summary-card report-technician-card"><span>Technician commission</span><strong>{{ formatAmount(summary.total_technician_commission) }}</strong></article>
       <article class="daily-summary-card report-count-card"><span>Investigation count</span><strong>{{ summary.total_investigation_count }}</strong><small>Matching date range and investigation</small></article>
     </section>
 
@@ -85,7 +88,15 @@ const loading = ref(true)
 const summaryLoading = ref(false)
 const pageError = ref('')
 const summaryError = ref('')
-const summary = ref({ total_investigation_collection: '0.00', total_doctor_commission: '0.00', total_technician_commission: '0.00', total_investigation_count: 0 })
+const summary = ref({
+  total_investigation_collection: '0.00',
+  total_agent_commission: '0.00',
+  total_customer_requested_discount: '0.00',
+  cash_in_hand: '0.00',
+  total_doctor_commission: '0.00',
+  total_technician_commission: '0.00',
+  total_investigation_count: 0,
+})
 let summaryRequest = 0
 
 const dateRangeError = computed(() => fromDate.value && toDate.value && fromDate.value > toDate.value ? 'From date must be on or before the to date.' : '')
@@ -180,7 +191,11 @@ onMounted(async () => { await loadData(); await loadSummary() })
 .daily-summary-card > strong { color: #172033; font-size: 22px; line-height: 1.15; }
 .daily-summary-card > small { color: var(--muted); font-size: 11px; }
 .commission-summary-card { border-left: 4px solid #f59e0b; }
+.report-discount-card { border-left: 4px solid #6366f1; }
+.report-cash-card { border-left: 4px solid #10b981; }
+.report-cash-card > strong { color: #059669; }
 .report-doctor-card { border-left: 4px solid #6366f1; }
+.report-technician-card { border-left: 4px solid #f59e0b; }
 .report-count-card { border-left: 4px solid #0ea5e9; }
 .page-error, .summary-error { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 10px 13px; border: 1px solid #fecaca; border-radius: 12px; color: #b91c1c; background: #fef2f2; font-size: 12px; }
 .report-date-filter { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 600; }

@@ -11,11 +11,13 @@
     <div class="toolbar commission-toolbar">
       <label class="search-inline"><Search :size="17" /><input v-model="search" type="search" placeholder="Search technician, receipt, or investigation..." aria-label="Search technician commissions" /></label>
       <select v-model="statusFilter" class="input status-filter" aria-label="Filter commissions by payment status"><option value="all">All statuses</option><option value="pending">Unpaid</option><option value="paid">Paid</option><option value="not_applicable">No commission</option></select>
-      <input v-model="selectedDate" class="input date-filter" type="date" aria-label="Filter commissions by receipt date" />
+      <label class="commission-date-filter"><span>From date</span><input v-model="fromDate" class="input date-filter" type="date" aria-label="Filter commissions from date" /></label>
+      <label class="commission-date-filter"><span>To date</span><input v-model="toDate" class="input date-filter" type="date" aria-label="Filter commissions to date" /></label>
       <select v-model="investigationFilter" class="input investigation-filter" aria-label="Filter commissions by investigation"><option value="all">All investigations</option><option v-for="investigation in investigationOptions" :key="investigation.id" :value="String(investigation.id)">{{ investigation.name }}</option></select>
       <span class="spacer"></span><span class="muted">{{ receiptGroups.length }} receipts</span>
     </div>
 
+    <div v-if="dateRangeError" class="page-error" role="alert">{{ dateRangeError }}</div>
     <div v-if="pageError" class="page-error" role="alert"><span>{{ pageError }}</span><button class="btn btn-outline btn-sm" type="button" @click="loadCommissions">Try again</button></div>
     <div class="card commission-card">
       <div v-if="loading" class="empty" role="status">Loading technician commissions...</div>
@@ -59,7 +61,8 @@ const saving = ref(false)
 const pageError = ref('')
 const search = ref('')
 const statusFilter = ref('all')
-const selectedDate = ref(currentDate())
+const fromDate = ref(currentDate())
+const toDate = ref(currentDate())
 const investigationFilter = ref('all')
 const dialogOpen = ref(false)
 const receiptDialogOpen = ref(false)
@@ -83,12 +86,18 @@ const investigationOptions = computed(() => {
   }
   return Array.from(investigations, ([id, name]) => ({ id, name })).sort((first, second) => first.name.localeCompare(second.name))
 })
-const hasActiveFilters = computed(() => Boolean(search.value.trim()) || statusFilter.value !== 'all' || Boolean(selectedDate.value) || investigationFilter.value !== 'all')
+const dateRangeError = computed(() => {
+  if (!fromDate.value || !toDate.value) return 'Select both a from date and a to date.'
+  return fromDate.value > toDate.value ? 'From date must be on or before the to date.' : ''
+})
+const hasActiveFilters = computed(() => Boolean(search.value.trim()) || statusFilter.value !== 'all' || Boolean(fromDate.value || toDate.value) || investigationFilter.value !== 'all')
 const filteredCommissions = computed(() => {
   const query = search.value.trim().toLowerCase()
   return commissions.value.filter((item) => {
+    if (dateRangeError.value) return false
     const matchesStatus = statusFilter.value === 'all' || item.status === statusFilter.value
-    const matchesDate = !selectedDate.value || item.receipt?.receipt_date === selectedDate.value
+    const receiptDate = item.receipt?.receipt_date || ''
+    const matchesDate = (!fromDate.value || receiptDate >= fromDate.value) && (!toDate.value || receiptDate <= toDate.value)
     const matchesInvestigation = investigationFilter.value === 'all' || String(item.investigation_id) === investigationFilter.value
     const fields = [item.technician_name, item.investigation_name, item.receipt?.receipt_number, item.receipt?.patient_name].filter(Boolean)
     return matchesStatus && matchesDate && matchesInvestigation && (!query || fields.some((field) => String(field).toLowerCase().includes(query)))
@@ -201,7 +210,7 @@ onMounted(loadCommissions)
 .summary-card { display: grid; gap: 5px; padding: 18px 20px; border: 1px solid var(--border); border-radius: 16px; background: #fff; box-shadow: 0 4px 12px rgba(15,23,42,.04); }
 .summary-card span { color: var(--muted); font-size: 12px; font-weight: 600; }.summary-card strong { color: #172033; font-size: 21px; }.summary-card small { color: var(--muted); font-size: 11px; }
 .pending-card { border-left: 4px solid #f59e0b; }.paid-card { border-left: 4px solid #10b981; }.investigation-card { border-left: 4px solid #6366f1; }
-.commission-toolbar { gap: 12px; }.status-filter { width: auto; min-width: 165px; }.date-filter { width: auto; min-width: 145px; }.investigation-filter { width: auto; min-width: 185px; max-width: 240px; }.commission-card { overflow: hidden; }.commission-table { min-width: 1200px; }.investigation-summary { max-width: 280px; white-space: normal; }
+.commission-toolbar { gap: 12px; }.status-filter { width: auto; min-width: 165px; }.commission-date-filter { display: grid; gap: 5px; color: var(--muted); font-size: 12px; font-weight: 600; }.date-filter { width: auto; min-width: 145px; }.investigation-filter { width: auto; min-width: 185px; max-width: 240px; }.commission-card { overflow: hidden; }.commission-table { min-width: 1200px; }.investigation-summary { max-width: 280px; white-space: normal; }
 .commission-amount { color: var(--primary); font-weight: 800; white-space: nowrap; }.commission-amount small { color: var(--muted); font-size: 10px; }.muted { color: var(--muted); font-size: 12px; }.action-cell { text-align: right; white-space: nowrap; }
 .status-pill { display: inline-flex; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }.status-pending { color: #92400e; background: #fffbeb; }.status-paid { color: #047857; background: #ecfdf5; }.status-free { color: #64748b; background: #f1f5f9; }
 .dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(15,23,42,.56); }.pay-dialog-backdrop { z-index: 120; }.receipt-details-dialog { display: flex; flex-direction: column; width: min(900px,100%); max-height: min(780px,calc(100vh - 40px)); overflow: hidden; }.receipt-patient-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 14px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 13px; background: #f8faff; }.receipt-patient-summary div { display: grid; gap: 4px; }.receipt-patient-summary span { color: var(--muted); font-size: 11px; }.receipt-patient-summary strong { overflow-wrap: anywhere; }.receipt-detail-table-wrap { overflow-x: auto; }.receipt-detail-table { min-width: 720px; }.pay-dialog { display: flex; flex-direction: column; width: min(600px,100%); max-height: min(780px,calc(100vh - 40px)); overflow: hidden; }.pay-dialog form { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
@@ -209,6 +218,6 @@ onMounted(loadCommissions)
 .payment-preview { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 14px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 13px; background: #f8faff; }.payment-preview div { display: grid; gap: 4px; min-width: 0; }.payment-preview span { color: var(--muted); font-size: 11px; }.payment-preview strong { overflow-wrap: anywhere; color: #172033; font-size: 13px; }.payment-preview .payment-amount { color: var(--primary); font-size: 15px; }
 .notes-input { height: auto; min-height: 74px; padding-top: 10px; resize: vertical; }.dialog-actions { display: flex; flex: 0 0 auto; justify-content: flex-end; gap: 10px; padding: 15px 24px 19px; border-top: 1px solid var(--border); }.required { color: #dc2626; font-weight: 800; }.input-invalid { border-color: #dc2626; }.field-error { display: block; margin-top: 5px; color: #dc2626; font-size: 12px; }
 @media (max-width: 900px) { .commission-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 700px) { .commission-summary { grid-template-columns: 1fr; }.commission-toolbar { flex-wrap: wrap; }.commission-toolbar .search-inline { width: 100%; }.status-filter,.date-filter,.investigation-filter { flex: 1; min-width: 0; max-width: none; }.payment-preview { grid-template-columns: 1fr; }.receipt-patient-summary { grid-template-columns: 1fr; } }
+@media (max-width: 700px) { .commission-summary { grid-template-columns: 1fr; }.commission-toolbar { flex-wrap: wrap; }.commission-toolbar .search-inline { width: 100%; }.status-filter,.date-filter,.investigation-filter { flex: 1; min-width: 0; max-width: none; }.commission-date-filter { flex: 1; }.payment-preview { grid-template-columns: 1fr; }.receipt-patient-summary { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .dialog-backdrop { padding: 10px; }.dialog-head,.dialog-body { padding-right: 15px; padding-left: 15px; }.dialog-actions { padding-right: 15px; padding-left: 15px; } }
 </style>
