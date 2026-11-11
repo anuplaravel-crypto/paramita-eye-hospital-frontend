@@ -52,9 +52,10 @@
             <tr>
               <th>Sl</th>
               <th :aria-sort="sortAria('date')"><button class="sort-button" type="button" @click="toggleSort('date')">Date <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('date') }}</span></button></th>
-              <th :aria-sort="sortAria('receipt_number')"><button class="sort-button" type="button" @click="toggleSort('receipt_number')">Receipt No <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('receipt_number') }}</span></button></th>
-              <th :aria-sort="sortAria('patient_name')"><button class="sort-button" type="button" @click="toggleSort('patient_name')">Patient Name <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('patient_name') }}</span></button></th>
+              <th :aria-sort="sortAria('receipt_number')"><button class="sort-button" type="button" @click="toggleSort('receipt_number')">Receipt <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('receipt_number') }}</span></button></th>
+              <th :aria-sort="sortAria('patient_name')"><button class="sort-button" type="button" @click="toggleSort('patient_name')">Patient <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('patient_name') }}</span></button></th>
               <th :aria-sort="sortAria('investigations')"><button class="sort-button" type="button" @click="toggleSort('investigations')">Investigations <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('investigations') }}</span></button></th>
+              <th>Doctor</th>
               <th :aria-sort="sortAria('actual_fees')"><button class="sort-button" type="button" @click="toggleSort('actual_fees')">Actual Fees <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('actual_fees') }}</span></button></th>
               <th :aria-sort="sortAria('discount')"><button class="sort-button" type="button" @click="toggleSort('discount')">Discount <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('discount') }}</span></button></th>
               <th :aria-sort="sortAria('requested_discount')"><button class="sort-button" type="button" @click="toggleSort('requested_discount')">Discount (Req) <span class="sort-indicator" aria-hidden="true">{{ sortIndicator('requested_discount') }}</span></button></th>
@@ -67,7 +68,7 @@
           <tbody>
             <tr v-for="(receipt, index) in sortedReceipts" :key="receipt.id">
               <td>{{ index + 1 }}</td><td>{{ formatDate(receipt.receipt_date) }}</td><td><strong>{{ receipt.receipt_number }}</strong></td><td>{{ receipt.patient_name || '—' }}</td>
-              <td class="report-investigations">{{ investigationNames(receipt) }}</td><td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'price', 'actual_fees')) }}</td>
+              <td class="report-investigations">{{ investigationNames(receipt) }}</td><td>{{ receipt.doctor_name || '—' }}</td><td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'price', 'actual_fees')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'discount', 'discount')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'customer_requested_discount', 'customer_requested_discount')) }}</td>
               <td class="price-cell">{{ formatAmount(receiptAmount(receipt, 'agent_commission', 'agent_commission')) }}</td>
@@ -285,24 +286,27 @@ onMounted(async () => { await loadData(); await loadSummary() })
 .report-doctor-card { border-left: 4px solid #6366f1; }
 .report-count-card { border-left: 4px solid #0ea5e9; }
 .report-table-card { overflow: hidden; }
-.report-table { min-width: 1200px; table-layout: fixed; }
+.report-table { min-width: 1360px; table-layout: fixed; }
 .report-table th, .report-table td { padding-right: 7px; padding-left: 7px; }
 .sort-button { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; color: inherit; background: transparent; font: inherit; text-align: left; text-transform: inherit; cursor: pointer; }
 .sort-button:hover, .sort-button:focus-visible { color: #475569; }
 .sort-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 3px; }
 .sort-indicator { color: #94a3b8; font-size: 13px; line-height: 1; }
 .report-table th:nth-child(1) { width: 3%; }
-.report-table th:nth-child(2) { width: 7%; }
-.report-table th:nth-child(3) { width: 8%; }
+.report-table th:nth-child(2) { width: 6%; }
+.report-table th:nth-child(3) { width: 7%; }
 .report-table th:nth-child(4) { width: 9%; }
-.report-table th:nth-child(5) { width: 17%; }
+.report-table th:nth-child(5) { width: 13%; }
 .report-table th:nth-child(6) { width: 8%; }
-.report-table th:nth-child(7) { width: 6%; }
-.report-table th:nth-child(8) { width: 9%; }
-.report-table th:nth-child(9) { width: 7%; }
-.report-table th:nth-child(10) { width: 9%; }
-.report-table th:nth-child(11) { width: 8%; }
-.report-table th:nth-child(12) { width: 9%; }
+.report-table th:nth-child(7) { width: 8%; }
+.report-table th:nth-child(8) { width: 6%; }
+.report-table th:nth-child(9) { width: 8%; }
+.report-table th:nth-child(10) { width: 7%; }
+.report-table th:nth-child(11) { width: 7%; }
+.report-table th:nth-child(12) { width: 8%; }
+.report-table th:nth-child(13) { width: 10%; min-width: 132px; }
+.report-table th:last-child, .report-table td:last-child { position: sticky; right: 0; z-index: 1; background: #fff; box-shadow: -7px 0 10px -10px rgba(15, 23, 42, .5); }
+.report-table thead th:last-child { z-index: 2; background: #f8fafd; }
 .report-investigations { min-width: 170px; max-width: 260px; white-space: normal; }
 @media (max-width: 900px) { .daily-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .daily-summary-grid { grid-template-columns: 1fr; } .report-toolbar { align-items: stretch; } .report-date-filter, .report-date-filter input, .report-investigation-filter, .report-filter-select { width: 100%; } .receipt-total-count { margin: 0; } }
