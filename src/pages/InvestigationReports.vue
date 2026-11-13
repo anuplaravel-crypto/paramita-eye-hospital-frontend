@@ -32,7 +32,7 @@
       <article class="daily-summary-card laminate-cash-card">
         <span>Actual cash after laminate</span>
         <strong>{{ formatAmount(summary.actual_cash_after_laminate) }}</strong>
-        <small>Actual cash in hand less laminate fees</small>
+        <small>Total investigation collection less laminate fees</small>
       </article>
     </section>
 
