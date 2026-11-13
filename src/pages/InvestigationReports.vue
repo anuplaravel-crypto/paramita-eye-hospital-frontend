@@ -9,6 +9,8 @@
 
     <div v-if="dateRangeError" class="page-error" role="alert">{{ dateRangeError }}</div>
     <section class="daily-summary-grid report-summary-grid" aria-label="Investigation report totals" aria-live="polite" :aria-busy="summaryLoading">
+      <article class="daily-summary-card actual-fees-summary-card"><span>Total actual fees</span><strong>{{ formatAmount(totalActualFees) }}</strong></article>
+      <article class="daily-summary-card discount-fees-summary-card"><span>Total discount fees</span><strong>{{ formatAmount(totalDiscountFees) }}</strong><small>Regular discounts across matching investigations</small></article>
       <article class="daily-summary-card"><span>Total investigation collection</span><strong>{{ formatAmount(summary.total_investigation_collection) }}</strong></article>
       <article class="daily-summary-card commission-summary-card"><span>Total agent commission</span><strong>{{ formatAmount(summary.total_agent_commission) }}</strong></article>
       <article class="daily-summary-card report-discount-card"><span>Customer request discount</span><strong>{{ formatAmount(summary.total_customer_requested_discount) }}</strong></article>
@@ -156,6 +158,14 @@ const filteredReceipts = computed(() => {
     return inRange && matchesType && matchesDoctor && matchesInvestigation && matchesTechnician
   })
 })
+const totalActualFees = computed(() => filteredReceipts.value.reduce((total, receipt) =>
+  total + matchingItems(receipt).reduce((receiptTotal, item) => receiptTotal + Number(item.price || 0), 0),
+  0
+))
+const totalDiscountFees = computed(() => filteredReceipts.value.reduce((total, receipt) =>
+  total + matchingItems(receipt).reduce((receiptTotal, item) => receiptTotal + Number(item.discount || 0), 0),
+  0
+))
 const sortedReceipts = computed(() => {
   const rows = [...filteredReceipts.value]
   if (!sortKey.value) return rows
@@ -190,7 +200,10 @@ function matchingItems(receipt) {
 }
 function receiptAmount(receipt, key, fallback) {
   const items = matchingItems(receipt)
-  if (items.some((item) => item[key] !== undefined && item[key] !== null)) return items.reduce((sum, item) => sum + Number(item[key] || 0), 0)
+  const hasItemLevelFilter = investigationFilter.value !== 'all' || technicianFilter.value !== 'all'
+  if (hasItemLevelFilter || items.some((item) => item[key] !== undefined && item[key] !== null)) {
+    return items.reduce((sum, item) => sum + Number(item[key] || 0), 0)
+  }
   return Number(receipt[fallback] || 0)
 }
 function receiptTechnicianCommission(receipt) {
@@ -287,6 +300,8 @@ onMounted(async () => { await loadData(); await loadSummary() })
 .daily-summary-card > span { color: var(--muted); font-size: 12px; font-weight: 600; }
 .daily-summary-card > strong { color: #172033; font-size: 22px; line-height: 1.15; }
 .daily-summary-card > small { color: var(--muted); font-size: 11px; }
+.actual-fees-summary-card { border-left: 4px solid #0ea5e9; }
+.discount-fees-summary-card { border-left: 4px solid #f97316; }
 .commission-summary-card { border-left: 4px solid #f59e0b; }
 .report-discount-card { border-left: 4px solid #6366f1; }
 .report-cash-card { border-left: 4px solid #10b981; }
