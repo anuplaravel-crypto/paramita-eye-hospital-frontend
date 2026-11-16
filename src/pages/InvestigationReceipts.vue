@@ -172,6 +172,7 @@
                 </section>
                 <section class="view-section">
                   <header class="view-section-heading"><div class="view-section-icon investigation-icon"><FileText :size="17" /></div><div><h3>Investigations</h3><p>{{ form.items.length }} {{ form.items.length === 1 ? 'investigation' : 'investigations' }} on this receipt</p></div></header>
+                  <div v-if="form.cancelled_item_count" class="cancelled-items-note" role="status">{{ form.cancelled_item_count }} removed {{ form.cancelled_item_count === 1 ? 'investigation is' : 'investigations are' }} retained as cancelled history.</div>
                   <div class="view-investigation-list">
                     <article v-for="(item, index) in form.items" :key="item.key" class="view-investigation-card">
                       <header class="view-investigation-head">
@@ -185,6 +186,13 @@
                         <div class="view-detail"><span>Discount(Req)</span><strong>{{ formatAmount(item.customer_requested_discount) }}</strong></div>
                         <div class="view-detail"><span>Investigation done by</span><strong>{{ technicianNameFor(item) }}</strong></div>
                       </div>
+                    </article>
+                  </div>
+                  <div v-if="form.cancelled_items.length" class="cancelled-history-list">
+                    <h4>Cancelled investigation history</h4>
+                    <article v-for="(item, index) in form.cancelled_items" :key="item.key" class="cancelled-history-card">
+                      <div><strong>{{ investigationNameFor(item) }}</strong><span>Cancelled {{ formatDate(item.cancelled_at) }}</span></div>
+                      <span class="cancelled-history-badge">Cancelled</span>
                     </article>
                   </div>
                 </section>
@@ -588,7 +596,7 @@ const editingReceipt = ref(null)
 const fieldErrors = ref({})
 const expandedItemKey = ref(null)
 const itemsHeadingRef = ref(null)
-const form = reactive({ receipt_date: '', investigation_type: 'indoor', receipt_number: '', patient_name: '', doctor_name: '', contact_number: '', items: [] })
+const form = reactive({ receipt_date: '', investigation_type: 'indoor', receipt_number: '', patient_name: '', doctor_name: '', contact_number: '', cancelled_item_count: 0, cancelled_items: [], items: [] })
 
 const investigationOptions = computed(() => [...investigations.value]
   .sort((first, second) => first.name.localeCompare(second.name)))
@@ -757,6 +765,8 @@ function resetForm() {
   form.patient_name = ''
   form.doctor_name = availableDoctors.value[0]?.name || ''
   form.contact_number = ''
+  form.cancelled_item_count = 0
+  form.cancelled_items = []
   nextItemNumber = 1
   form.items = [makeItem()]
   expandedItemKey.value = form.items[0].key
@@ -887,6 +897,11 @@ async function openDialog(receipt = null, mode = 'create') {
         ? data.doctor_name
         : availableDoctors.value[0]?.name || ''
       form.contact_number = data.contact_number || ''
+      form.cancelled_item_count = Number(data.cancelled_item_count || 0)
+      form.cancelled_items = (data.cancelled_items || []).map((item, index) => ({
+        ...makeItem(item, index + 1),
+        cancelled_at: item.cancelled_at,
+      }))
       form.items = data.items.map((item, index) => makeItem(item, index + 1))
       nextItemNumber = form.items.length + 1
       expandedItemKey.value = form.items[0]?.key ?? null
@@ -1163,6 +1178,14 @@ onMounted(loadData)
 .investigation-icon { color: #0891b2; background: #ecfeff; }
 .patient-view-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .view-investigation-list { display: grid; gap: 10px; }
+.cancelled-items-note { margin: -5px 0 13px; padding: 10px 12px; border: 1px solid #fed7aa; border-radius: 10px; color: #9a3412; background: #fff7ed; font-size: 12px; }
+.cancelled-history-list { display: grid; gap: 8px; margin-top: 15px; }
+.cancelled-history-list h4 { color: #7f1d1d; font-size: 12px; }
+.cancelled-history-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 1px solid #fee2e2; border-radius: 11px; background: #fffafa; }
+.cancelled-history-card > div { display: grid; gap: 3px; }
+.cancelled-history-card strong { color: #334155; font-size: 12px; }
+.cancelled-history-card span { color: var(--muted); font-size: 11px; }
+.cancelled-history-card .cancelled-history-badge { padding: 5px 8px; border-radius: 999px; color: #991b1b; background: #fef2f2; font-weight: 700; }
 .view-investigation-card { padding: 14px; border: 1px solid #e8edf5; border-radius: 13px; background: #fbfcff; }
 .view-investigation-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #e8edf5; }
 .view-investigation-head > div:first-child { display: flex; align-items: center; gap: 9px; min-width: 0; }

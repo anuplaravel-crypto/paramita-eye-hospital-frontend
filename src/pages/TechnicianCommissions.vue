@@ -145,11 +145,12 @@ function groupByReceipt(entries) {
   }
 
   return Array.from(groups.values()).map((receipt) => {
-    const paidItems = receipt.items.filter((item) => Number(item.commission_amount) > 0)
+    const activeItems = receipt.items.filter((item) => item.status !== 'cancelled')
+    const paidItems = activeItems.filter((item) => Number(item.commission_amount) > 0)
     const statuses = new Set(paidItems.map((item) => item.status))
-    const investigationNames = [...new Set(receipt.items.map((item) => item.investigation_name).filter(Boolean))]
-    const technicianNames = [...new Set(receipt.items.map((item) => item.technician_name).filter(Boolean))]
-    const pendingItems = receipt.items.filter((item) => item.status === 'pending' && Number(item.commission_amount) > 0)
+    const investigationNames = [...new Set(activeItems.map((item) => item.investigation_name).filter(Boolean))]
+    const technicianNames = [...new Set(activeItems.map((item) => item.technician_name).filter(Boolean))]
+    const pendingItems = activeItems.filter((item) => item.status === 'pending' && Number(item.commission_amount) > 0)
     const pendingInvestigationNames = [...new Set(pendingItems.map((item) => item.investigation_name).filter(Boolean))]
     const pendingTechnicianNames = [...new Set(pendingItems.map((item) => item.technician_name).filter(Boolean))]
     const paidDates = paidItems.filter((item) => item.status === 'paid' && item.paid_at).map((item) => item.paid_at)
@@ -160,7 +161,7 @@ function groupByReceipt(entries) {
       technicianSummary: technicianNames.join(', ') || '—',
       pendingInvestigationSummary: pendingInvestigationNames.join(', ') || '—',
       pendingTechnicianSummary: pendingTechnicianNames.join(', ') || '—',
-      discountTotal: receipt.items.reduce((total, item) => total + Number(item.discount || 0), 0),
+      discountTotal: activeItems.reduce((total, item) => total + Number(item.discount || 0), 0),
       commissionTotal: paidItems.reduce((total, item) => total + Number(item.commission_amount || 0), 0),
       pendingCommissionTotal: pendingItems.reduce((total, item) => total + Number(item.commission_amount || 0), 0),
       status: statuses.size === 0 ? 'not_applicable' : statuses.has('pending') ? 'pending' : 'paid',
@@ -204,8 +205,8 @@ function formatDate(value) {
   if (!year || !month || !day) return '—'
   return new Date(year, month - 1, day).toLocaleDateString('en-BD', { year: 'numeric', month: 'short', day: 'numeric' })
 }
-function statusLabel(status) { return status === 'paid' ? 'Paid' : status === 'pending' ? 'Unpaid' : 'No commission' }
-function statusClass(status) { return status === 'paid' ? 'status-paid' : status === 'pending' ? 'status-pending' : 'status-free' }
+function statusLabel(status) { return status === 'paid' ? 'Paid' : status === 'pending' ? 'Unpaid' : status === 'cancelled' ? 'Cancelled' : 'No commission' }
+function statusClass(status) { return status === 'paid' ? 'status-paid' : status === 'pending' ? 'status-pending' : status === 'cancelled' ? 'status-cancelled' : 'status-free' }
 function currentDate() { const today = new Date(); return [today.getFullYear(), String(today.getMonth() + 1).padStart(2, '0'), String(today.getDate()).padStart(2, '0')].join('-') }
 async function loadCommissions() {
   loading.value = true; pageError.value = ''
@@ -270,7 +271,7 @@ onMounted(loadCommissions)
 .sort-button:hover, .sort-button:focus-visible { color: #475569; }
 .sort-button:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 3px; }
 .sort-indicator { color: #94a3b8; font-size: 13px; line-height: 1; }
-.status-pill { display: inline-flex; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }.status-pending { color: #92400e; background: #fffbeb; }.status-paid { color: #047857; background: #ecfdf5; }.status-free { color: #64748b; background: #f1f5f9; }
+.status-pill { display: inline-flex; padding: 5px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; }.status-pending { color: #92400e; background: #fffbeb; }.status-paid { color: #047857; background: #ecfdf5; }.status-cancelled { color: #991b1b; background: #fef2f2; }.status-free { color: #64748b; background: #f1f5f9; }
 .dialog-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; overflow-y: auto; padding: 20px; background: rgba(15,23,42,.56); }.pay-dialog-backdrop { z-index: 120; }.receipt-details-dialog { display: flex; flex-direction: column; width: min(900px,100%); max-height: min(780px,calc(100vh - 40px)); overflow: hidden; }.receipt-patient-summary { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 12px; padding: 14px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 13px; background: #f8faff; }.receipt-patient-summary div { display: grid; gap: 4px; }.receipt-patient-summary span { color: var(--muted); font-size: 11px; }.receipt-patient-summary strong { overflow-wrap: anywhere; }.receipt-detail-table-wrap { overflow-x: auto; }.receipt-detail-table { min-width: 720px; }.pay-dialog { display: flex; flex-direction: column; width: min(600px,100%); max-height: min(780px,calc(100vh - 40px)); overflow: hidden; }.pay-dialog form { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: hidden; }
 .dialog-head { display: flex; flex: 0 0 auto; justify-content: space-between; gap: 16px; padding: 20px 24px; border-bottom: 1px solid var(--border); }.dialog-head h2 { font-size: 19px; }.dialog-head p { margin-top: 3px; color: var(--muted); font-size: 12px; }.dialog-body { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px; }.field + .field { margin-top: 15px; }
 .payment-preview { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; padding: 14px; margin-bottom: 18px; border: 1px solid var(--border); border-radius: 13px; background: #f8faff; }.payment-preview div { display: grid; gap: 4px; min-width: 0; }.payment-preview span { color: var(--muted); font-size: 11px; }.payment-preview strong { overflow-wrap: anywhere; color: #172033; font-size: 13px; }.payment-preview .payment-amount { color: var(--primary); font-size: 15px; }
