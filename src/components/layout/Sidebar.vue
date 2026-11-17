@@ -98,6 +98,7 @@ const manageMenu = computed(() => auth.role !== 'admin' ? [] : [
   { to: '/admin/staff', label: 'Staff', icon: UserRound },
   { to: '/admin/users', label: 'Users', icon: UserPlus },
   { to: '/admin/investigations', label: 'Investigations', icon: FileText },
+  { to: '/admin/medicines', label: 'Medicines', icon: FileText },
   { to: '/admin/investigation-receipts', label: 'Investigation Receipts', icon: FileText },
   { to: '/admin/technician-commission-rates', label: 'Technician Commission Rates', icon: BadgeDollarSign },
   { to: '/admin/technician-commissions', label: 'Technician Commissions', icon: HandCoins },
