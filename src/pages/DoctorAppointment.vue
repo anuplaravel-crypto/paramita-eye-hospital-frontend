@@ -108,7 +108,8 @@
           </div>
           <div class="linked-receipt pending-order-note"><FileText :size="18" /><div><strong>Take this request to the cash counter</strong><span>Payment has not been collected. This document is not a money receipt.</span></div><span class="linked-tag">Not paid</span></div>
           <div class="investigation-preview">
-            <label class="field"><span>Investigation</span><select v-model="investigationId"><option value="">Select from investigations</option><option v-for="investigation in investigationOptions" :key="investigation.id" :value="investigation.id">{{ investigation.name }} · {{ Number(investigation.price).toFixed(2) }} BDT</option></select></label>
+            <label class="field"><span>Investigation</span><select v-model="investigationId"><option value="">Select from investigations</option><option v-for="investigation in investigationOptions" :key="investigation.id" :value="investigation.id">{{ investigation.name }}</option></select></label>
+            <label class="field"><span>Price (BDT)</span><input :value="selectedInvestigation ? formatAmount(selectedInvestigation.price) : ''" placeholder="Select an investigation" readonly /></label>
             <label class="field discount-field"><span>Discount (BDT)</span><input v-model="investigationDiscount" type="number" min="0" placeholder="0.00" /></label>
             <button class="btn btn-outline add-investigation" type="button" @click="addInvestigation"><Plus :size="16" /> Add</button>
           </div>
@@ -268,6 +269,7 @@ const prescriptionStage = ref('initial')
 const investigationId = ref('')
 const investigationDiscount = ref('0')
 const investigations = ref([])
+const selectedInvestigation = computed(() => investigationOptions.value.find((item) => Number(item.id) === Number(investigationId.value)) || null)
 const followupPlan = ref('none')
 const followupNote = ref('')
 const operationProcedure = ref('')
@@ -624,7 +626,8 @@ function statusLabel(status) {
 .linked-receipt strong { color: var(--text); font-size: 12px; }
 .linked-receipt span:not(.linked-tag) { color: var(--muted); font-size: 11px; }
 .linked-tag { color: #0369a1; background: #dff5ff; }
-.investigation-preview { display: grid; grid-template-columns: minmax(0, 1fr) 145px auto; align-items: end; gap: 12px; margin: 18px 0 14px; }
+.investigation-preview { display: grid; grid-template-columns: minmax(200px, 2fr) minmax(120px, 1fr) minmax(120px, 1fr) auto; align-items: end; gap: 12px; margin: 18px 0 14px; }
+.investigation-preview input[readonly] { color: #475569; background: #f8fafc; }
 .add-investigation { min-height: 42px; }
 .ordered-tests { display: grid; }
 .ordered-test { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-top: 1px solid var(--border); }
