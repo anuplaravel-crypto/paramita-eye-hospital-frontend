@@ -54,6 +54,7 @@ const routes = [
       { path: 'dashboard', name: 'doctor.dashboard', component: () => import('../pages/DoctorDashboard.vue'), meta: { title: 'Doctor Dashboard' } },
       { path: 'my-appointments', name: 'doctor.appointments', component: () => import('../pages/DoctorAppointments.vue'), meta: { title: 'My Appointments' } },
       { path: 'my-appointments/:serialNumber', name: 'doctor.appointment', component: () => import('../pages/DoctorAppointment.vue'), meta: { title: 'Appointment Details' } },
+      { path: 'my-appointments/:serialNumber/investigations', name: 'doctor.appointment.investigations', component: () => import('../pages/DoctorAppointment.vue'), meta: { title: 'Investigation Order' } },
     ],
   },
 
