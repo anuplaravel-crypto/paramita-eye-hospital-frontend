@@ -114,7 +114,21 @@
             <button class="btn btn-outline add-investigation" type="button" @click="addInvestigation"><Plus :size="16" /> Add</button>
           </div>
           <div v-if="investigations.length" class="ordered-tests">
-            <div v-for="(item, index) in investigations" :key="item.key" class="ordered-test"><div><strong>{{ item.name }}</strong><span>Fee {{ formatAmount(item.price) }} BDT</span></div><div class="ordered-test-discount"><small>Doctor discount</small><strong>{{ formatAmount(item.discount) }}</strong></div><div class="ordered-test-payable"><small>Payable</small><strong>{{ formatAmount(item.price - item.discount) }}</strong></div><button class="icon-button danger" type="button" aria-label="Remove investigation" @click="investigations.splice(index, 1)"><Trash2 :size="15" /></button></div>
+            <div v-for="(item, index) in investigations" :key="item.key" class="ordered-test-item">
+              <div v-if="editingInvestigationKey === item.key" class="investigation-edit-row">
+                <label class="field"><span>Investigation</span><select v-model="investigationEditDraft.investigation_id"><option value="">Select from investigations</option><option v-for="investigation in investigationOptions" :key="investigation.id" :value="investigation.id">{{ investigation.name }}</option></select></label>
+                <label class="field"><span>Price (BDT)</span><input :value="selectedEditInvestigation ? formatAmount(selectedEditInvestigation.price) : ''" placeholder="Select an investigation" readonly /></label>
+                <label class="field"><span>Discount (BDT)</span><input v-model="investigationEditDraft.discount" type="number" min="0" :max="selectedEditInvestigation?.price || 0" step="0.01" /></label>
+                <div class="investigation-edit-actions"><button class="btn btn-outline btn-sm" type="button" @click="cancelEditInvestigation">Cancel</button><button class="btn btn-primary btn-sm" type="button" @click="applyInvestigationEdit(item)">Done</button></div>
+              </div>
+              <div v-else class="ordered-test">
+                <div><strong>{{ item.name }}</strong><span>Fee {{ formatAmount(item.price) }} BDT</span></div>
+                <div class="ordered-test-discount"><small>Doctor discount</small><strong>{{ formatAmount(item.discount) }}</strong></div>
+                <div class="ordered-test-payable"><small>Payable</small><strong>{{ formatAmount(item.price - item.discount) }}</strong></div>
+                <button v-if="item.status === 'pending' && item.is_paid === false" class="btn btn-outline btn-sm edit-investigation" type="button" :disabled="saving" @click="beginEditInvestigation(item)"><Pencil :size="14" /> Edit</button>
+                <button v-if="item.status === 'pending' && item.is_paid === false" class="icon-button danger" type="button" aria-label="Remove investigation" :disabled="saving" @click="removeInvestigation(index)"><Trash2 :size="15" /></button>
+              </div>
+            </div>
           </div>
           <div v-else class="empty-tests">Investigation items will appear here when selected.</div>
           <div class="order-total-row"><span>Amount due at cash counter</span><strong>{{ formatAmount(investigationPayableTotal) }} BDT</strong></div>
@@ -248,7 +262,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Activity, ArrowLeft, Eye, FileCheck2, FilePlus2, FileText, FlaskConical, HeartPulse, LoaderCircle, Pill, Plus, Printer, Save, Stethoscope, Trash2, UserRound } from '@lucide/vue'
+import { Activity, ArrowLeft, Eye, FileCheck2, FilePlus2, FileText, FlaskConical, HeartPulse, LoaderCircle, Pencil, Pill, Plus, Printer, Save, Stethoscope, Trash2, UserRound } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import api from '../api/axios'
 
@@ -269,7 +283,10 @@ const prescriptionStage = ref('initial')
 const investigationId = ref('')
 const investigationDiscount = ref('0')
 const investigations = ref([])
+const editingInvestigationKey = ref(null)
+const investigationEditDraft = ref({ investigation_id: '', discount: 0 })
 const selectedInvestigation = computed(() => investigationOptions.value.find((item) => Number(item.id) === Number(investigationId.value)) || null)
+const selectedEditInvestigation = computed(() => investigationOptions.value.find((item) => Number(item.id) === Number(investigationEditDraft.value.investigation_id)) || null)
 const followupPlan = ref('none')
 const followupNote = ref('')
 const operationProcedure = ref('')
@@ -340,9 +357,59 @@ function addInvestigation() {
     return
   }
   const discount = Math.max(0, Math.min(Number(investigationDiscount.value) || 0, Number(selectedInvestigation.price)))
-  investigations.value.push({ key: `new-${Date.now()}-${Math.random()}`, investigation_id: selectedInvestigation.id, name: selectedInvestigation.name, price: Number(selectedInvestigation.price), discount, id: null })
+  investigations.value.push({ key: `new-${Date.now()}-${Math.random()}`, investigation_id: selectedInvestigation.id, name: selectedInvestigation.name, price: Number(selectedInvestigation.price), discount, id: null, status: 'pending', is_paid: false })
   investigationId.value = ''
   investigationDiscount.value = '0'
+  savedAt.value = ''
+}
+
+function removeInvestigation(index) {
+  investigations.value.splice(index, 1)
+  savedAt.value = ''
+}
+
+function beginEditInvestigation(item) {
+  if (item.status !== 'pending' || item.is_paid !== false || saving.value) return
+  editingInvestigationKey.value = item.key
+  investigationEditDraft.value = {
+    investigation_id: item.investigation_id,
+    discount: Number(item.discount) || 0,
+  }
+}
+
+function cancelEditInvestigation() {
+  editingInvestigationKey.value = null
+  investigationEditDraft.value = { investigation_id: '', discount: 0 }
+}
+
+function applyInvestigationEdit(item) {
+  if (item.status !== 'pending' || item.is_paid !== false) {
+    toast.error('Only unpaid investigations can be edited.')
+    cancelEditInvestigation()
+    return
+  }
+  if (!selectedEditInvestigation.value) {
+    toast.error('Select an investigation first.')
+    return
+  }
+  const duplicate = investigations.value.some((row) => row.key !== item.key && Number(row.investigation_id) === Number(selectedEditInvestigation.value.id))
+  if (duplicate) {
+    toast.error('This investigation is already in the order.')
+    return
+  }
+  const discount = Number(investigationEditDraft.value.discount) || 0
+  if (discount < 0 || discount > Number(selectedEditInvestigation.value.price)) {
+    toast.error('Discount cannot exceed the investigation fee.')
+    return
+  }
+  Object.assign(item, {
+    investigation_id: selectedEditInvestigation.value.id,
+    name: selectedEditInvestigation.value.name,
+    price: Number(selectedEditInvestigation.value.price),
+    discount,
+  })
+  cancelEditInvestigation()
+  savedAt.value = ''
 }
 
 function medicineChanged(row) {
@@ -381,6 +448,8 @@ function hydrateClinicalData() {
     name: item.name,
     price: Number(item.price),
     discount: Number(item.doctor_discount),
+    status: item.status,
+    is_paid: item.is_paid === true,
   }))
 }
 
@@ -405,6 +474,10 @@ function loadPrescriptionStage() {
 }
 
 async function saveCurrentSection() {
+  if (isInvestigationPage.value && editingInvestigationKey.value !== null) {
+    toast.error('Finish or cancel the investigation edit before saving.')
+    return
+  }
   if (isInvestigationPage.value) return saveInvestigationOrder()
   if (activeClinicalTab.value === 'prescription') return savePrescription()
   return saveConsultation()
@@ -630,7 +703,8 @@ function statusLabel(status) {
 .investigation-preview input[readonly] { color: #475569; background: #f8fafc; }
 .add-investigation { min-height: 42px; }
 .ordered-tests { display: grid; }
-.ordered-test { display: flex; align-items: center; gap: 12px; padding: 12px 2px; border-top: 1px solid var(--border); }
+.ordered-test-item { border-top: 1px solid var(--border); }
+.ordered-test { display: flex; align-items: center; gap: 12px; padding: 12px 2px; }
 .ordered-test > div:first-child { display: grid; gap: 3px; }
 .ordered-test > div:first-child strong { font-size: 12px; }
 .ordered-test > div:first-child span, .ordered-test-discount small { color: var(--muted); font-size: 11px; }
@@ -639,6 +713,10 @@ function statusLabel(status) {
 .ordered-test-payable { display: grid; gap: 3px; min-width: 96px; text-align: right; }
 .ordered-test-payable small { color: var(--muted); font-size: 11px; }
 .ordered-test-payable strong { color: #059669; font-size: 12px; }
+.edit-investigation { flex: 0 0 auto; }
+.investigation-edit-row { display: grid; grid-template-columns: minmax(180px, 2fr) minmax(125px, 1fr) minmax(125px, 1fr) auto; align-items: end; gap: 10px; padding: 14px 2px; }
+.investigation-edit-actions { display: flex; gap: 7px; }
+.investigation-edit-actions .btn { white-space: nowrap; }
 .order-total-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 14px; padding: 15px; border: 1px solid #c7d2fe; border-radius: 12px; background: #f5f3ff; }
 .order-total-row span { color: #475569; font-size: 12px; }
 .order-total-row strong { color: #5b45e8; font-size: 18px; }
@@ -662,7 +740,8 @@ function statusLabel(status) {
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (max-width: 1080px) { .workspace-grid { grid-template-columns: minmax(0, 1fr) 275px; } .medicine-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } .medicine-name, .medicine-instructions { grid-column: span 2; } }
 @media (max-width: 760px) { .patient-banner { flex-wrap: wrap; } .patient-banner-detail { padding-left: 10px; } .patient-serial { margin-left: 0; text-align: left; } .workspace-grid { grid-template-columns: 1fr; } .side-column { grid-template-columns: 1fr; } .workspace-footer { position: static; align-items: stretch; flex-direction: column; } .workspace-footer > div { justify-content: flex-end; } }
-@media (max-width: 560px) { .doctor-consultation .page-head { align-items: flex-start; flex-direction: column; } .head-actions { width: 100%; justify-content: space-between; } .consultation-tabs { width: 100%; overflow-x: auto; } .visit-page-link { padding: 0 10px; font-size: 12px; } .workspace-card { padding: 16px; } .form-grid, .medicine-fields { grid-template-columns: 1fr; } .medicine-name, .medicine-instructions { grid-column: auto; } .investigation-preview { grid-template-columns: 1fr 1fr; } .investigation-preview .field:first-child { grid-column: 1 / -1; } .add-investigation { grid-column: 1 / -1; } .stage-chip { display: none; } .ordered-test { flex-wrap: wrap; } .ordered-test-payable { margin-left: auto; } }
+@media (max-width: 760px) { .investigation-edit-row { grid-template-columns: 1fr 1fr; } .investigation-edit-row .field:first-child { grid-column: 1 / -1; } .investigation-edit-actions { grid-column: 1 / -1; justify-content: flex-end; } }
+@media (max-width: 560px) { .doctor-consultation .page-head { align-items: flex-start; flex-direction: column; } .head-actions { width: 100%; justify-content: space-between; } .consultation-tabs { width: 100%; overflow-x: auto; } .visit-page-link { padding: 0 10px; font-size: 12px; } .workspace-card { padding: 16px; } .form-grid, .medicine-fields { grid-template-columns: 1fr; } .medicine-name, .medicine-instructions { grid-column: auto; } .investigation-preview { grid-template-columns: 1fr 1fr; } .investigation-preview .field:first-child { grid-column: 1 / -1; } .add-investigation { grid-column: 1 / -1; } .stage-chip { display: none; } .ordered-test { flex-wrap: wrap; } .ordered-test-payable { margin-left: auto; } .investigation-edit-row { grid-template-columns: 1fr; } .investigation-edit-row .field:first-child, .investigation-edit-actions { grid-column: auto; } }
 @media print {
   @page { size: A4; margin: 12mm; }
   :global(body) { background: #fff !important; }
