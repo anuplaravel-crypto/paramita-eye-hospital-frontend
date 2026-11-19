@@ -33,6 +33,7 @@
       </section>
 
       <div class="mock-data-note"><FileText :size="17" /><span><strong>Clinical record</strong> — save each section to store it in the patient record.</span></div>
+      <div v-if="catalogError" class="appointment-error" role="alert"><span>{{ catalogError }}</span><button class="btn btn-outline btn-sm" type="button" @click="loadClinicalCatalogs">Retry catalog</button></div>
 
       <nav class="consultation-tabs" aria-label="Doctor visit pages">
         <RouterLink v-if="isInvestigationPage" class="visit-page-link" :to="{ name: 'doctor.appointment', params: { serialNumber: route.params.serialNumber } }"><Stethoscope :size="17" /> Consultation & Prescription</RouterLink>
@@ -82,7 +83,7 @@
           <article v-for="(row, index) in medicines" :key="row.key" class="medicine-row">
             <div class="medicine-row-head"><strong>Medicine {{ index + 1 }}</strong><button class="icon-button danger" type="button" aria-label="Remove medicine" @click="removeMedicine(row.key)"><Trash2 :size="16" /></button></div>
             <div class="medicine-fields">
-              <label class="field medicine-name"><span>Medicine <b>*</b></span><select v-model="row.medicine_id" @change="medicineChanged(row)"><option value="">Select medicine</option><option v-for="medicine in medicineOptions" :key="medicine.id" :value="medicine.id">{{ medicine.name }} · {{ medicine.dosage_form }}</option></select></label>
+              <label class="field medicine-name"><span>Medicine <b>*</b></span><select v-model="row.medicine_id" :disabled="catalogLoading" @change="medicineChanged(row)"><option value="">{{ catalogLoading ? 'Loading medicines…' : medicineOptions.length ? 'Select medicine' : 'No active medicines in catalog' }}</option><option v-for="medicine in medicineOptions" :key="medicine.id" :value="medicine.id">{{ medicineOptionLabel(medicine) }}</option></select></label>
               <label class="field"><span>Strength</span><input v-model="row.strength" placeholder="e.g. 0.5%" /></label>
               <label class="field"><span>Dose</span><input v-model="row.dose" placeholder="e.g. 1 drop" /></label>
               <label class="field"><span>Frequency</span><input v-model="row.frequency" placeholder="e.g. 4 times daily" /></label>
@@ -279,6 +280,8 @@ const prescriptionAdvice = ref('')
 const medicines = ref([])
 const medicineOptions = ref([])
 const investigationOptions = ref([])
+const catalogLoading = ref(false)
+const catalogError = ref('')
 const prescriptionStage = ref('initial')
 const investigationId = ref('')
 const investigationDiscount = ref('0')
@@ -302,24 +305,38 @@ const investigationOrderNumber = computed(() => {
   return order ? `IO-${year}-${String(order.id).padStart(5, '0')}` : `Draft · ${year}-${String(appointment.value?.serial_number || route.params.serialNumber).padStart(4, '0')}`
 })
 
-onMounted(loadAppointment)
+onMounted(() => {
+  loadAppointment()
+  loadClinicalCatalogs()
+})
 
 async function loadAppointment() {
   loading.value = true
   errorMessage.value = ''
   try {
-    const [appointmentResponse, catalogResponse] = await Promise.all([
-      api.get(`/doctor/appointments/${route.params.serialNumber}`),
-      api.get('/doctor/clinical-catalogs'),
-    ])
-    appointment.value = appointmentResponse.data.data || appointmentResponse.data
-    medicineOptions.value = catalogResponse.data.data?.medicines || []
-    investigationOptions.value = catalogResponse.data.data?.investigations || []
+    const { data: appointmentResponse } = await api.get(`/doctor/appointments/${route.params.serialNumber}`)
+    appointment.value = appointmentResponse.data || appointmentResponse
     hydrateClinicalData()
   } catch (error) {
     errorMessage.value = error.response?.data?.message || 'This appointment could not be loaded.'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadClinicalCatalogs() {
+  catalogLoading.value = true
+  catalogError.value = ''
+  try {
+    const { data: catalogResponse } = await api.get('/doctor/clinical-catalogs')
+    medicineOptions.value = catalogResponse.data?.medicines || []
+    investigationOptions.value = catalogResponse.data?.investigations || []
+  } catch (error) {
+    medicineOptions.value = []
+    investigationOptions.value = []
+    catalogError.value = error.response?.data?.message || 'Medicine and investigation catalogs could not be loaded.'
+  } finally {
+    catalogLoading.value = false
   }
 }
 
@@ -417,6 +434,10 @@ function medicineChanged(row) {
   if (!medicine) return
   row.strength = medicine.strength || ''
   row.route = medicine.route || ''
+}
+
+function medicineOptionLabel(medicine) {
+  return medicine.name || ''
 }
 
 function medicineName(id) {
