@@ -8,6 +8,9 @@
       <button class="btn btn-primary" type="button" @click="openDialog()">
         <Plus :size="17" /> Create Receipt
       </button>
+      <button class="btn btn-outline" type="button" @click="togglePendingOrders">
+        <FileText :size="17" /> Pending Orders <span v-if="pendingOrders.length" class="pending-count">{{ pendingOrders.length }}</span>
+      </button>
     </header>
 
     <div class="toolbar">
@@ -35,6 +38,52 @@
       <span class="spacer"></span>
       <span class="receipt-total-count">{{ filteredReceipts.length }} receipts</span>
     </div>
+
+    <section v-if="pendingOrdersOpen" class="card pending-orders-panel" aria-labelledby="pending-orders-title">
+      <header class="pending-orders-head">
+        <div><h2 id="pending-orders-title">Pending doctor investigation orders</h2><p>Search by patient name, phone, appointment serial, or order number. Select tests to receive payment.</p></div>
+        <button class="icon-btn" type="button" aria-label="Close pending orders" @click="pendingOrdersOpen = false"><X :size="17" /></button>
+      </header>
+      <div class="pending-orders-filters">
+        <label class="pending-order-search">
+          <span class="pending-search-icon"><Search :size="19" /></span>
+          <span class="pending-search-content"><small>FIND A PATIENT</small><input v-model="pendingSearch" type="search" placeholder="Name, phone, appointment serial, or order number" aria-label="Search pending investigation orders" /></span>
+          <span class="pending-search-chip">Search</span>
+        </label>
+        <label class="date-filter"><span>Order date</span><input v-model="pendingDate" type="date" aria-label="Filter pending orders by order date" /></label>
+        <select v-model="pendingType" class="input" aria-label="Filter pending orders by type"><option value="all">All types</option><option value="indoor">Indoor</option><option value="outdoor">Outdoor</option></select>
+        <span class="spacer"></span><span>{{ pendingOrders.length }} pending investigations</span>
+      </div>
+      <div v-if="pendingOrdersLoading" class="empty" role="status">Loading unpaid investigation orders...</div>
+      <div v-else-if="pendingOrdersError" class="page-error" role="alert"><span>{{ pendingOrdersError }}</span><button class="btn btn-outline btn-sm" type="button" @click="loadPendingOrders">Try again</button></div>
+      <div v-else-if="!pendingOrderGroups.length" class="empty"><h4>No unpaid doctor orders found</h4><p>Try another search or create a receipt for a walk-in patient.</p></div>
+      <div v-else class="pending-order-list">
+        <details v-for="(group, index) in pendingOrderGroups" :key="group.order_id" class="pending-order-card" :open="index === 0">
+          <summary class="pending-order-patient">
+            <span class="pending-patient-chevron"><ChevronDown :size="17" /></span>
+            <span class="pending-patient-main"><strong>{{ capitalizeWords(group.patient_name) }}</strong><small>{{ group.contact_number || 'No phone' }} · Appointment #{{ group.appointment_serial_number }} · {{ formatDate(group.appointment_date) }}</small></span>
+            <span class="pending-order-doctor"><small>{{ formatInvestigationType(group.investigation_type) }}</small><strong>{{ group.doctor_name }}</strong></span>
+          </summary>
+          <div class="pending-order-body">
+            <div class="pending-order-table-wrap">
+              <table class="table pending-order-table">
+                <thead><tr><th aria-label="Select"></th><th>Investigation</th><th>Actual fees</th><th>Discount</th><th>Due</th></tr></thead>
+                <tbody>
+                  <tr v-for="item in group.items" :key="item.order_item_id">
+                    <td><input type="checkbox" :checked="isPendingItemSelected(group.order_id, item.order_item_id)" :aria-label="'Select ' + item.investigation_name" @change="setPendingItemSelected(group.order_id, item.order_item_id, $event.target.checked)" /></td>
+                    <td class="pending-investigation-name">{{ item.investigation_name }}</td>
+                    <td>{{ formatAmount(item.price) }}</td>
+                    <td>{{ formatAmount(item.doctor_discount) }}</td>
+                    <td class="pending-due-cell">{{ formatAmount(item.payable_amount) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <footer class="pending-order-footer"><span>Select one or more investigations for this payment.</span><button class="btn btn-primary btn-sm" type="button" :disabled="!selectedPendingCount(group.order_id)" @click="receivePendingOrder(group)">Receive payment · {{ formatAmount(selectedPendingTotal(group.order_id, group)) }}</button></footer>
+          </div>
+        </details>
+      </div>
+    </section>
 
     <div v-if="dateRangeError" class="summary-error" role="alert">{{ dateRangeError }}</div>
     <section class="daily-summary-grid" aria-label="Investigation collection summary" aria-live="polite" :aria-busy="summaryLoading">
@@ -121,6 +170,7 @@
                     <Printer :size="15" /> MR
                   </button>
                   <button
+                    v-if="!receiptHasLinkedOrderItems(receipt)"
                     class="icon-btn danger-action"
                     type="button"
                     title="Delete receipt"
@@ -129,6 +179,7 @@
                   >
                     <Trash2 :size="16" />
                   </button>
+                  <span v-else class="linked-receipt-lock" :title="'Doctor-order receipts are protected from deletion'">Order linked</span>
                 </div>
               </td>
             </tr>
@@ -151,6 +202,7 @@
           </header>
 
           <form novalidate @submit.prevent="saveReceipt">
+            <div v-if="hasLinkedOrderItems" class="linked-order-note" role="status"><strong>Doctor order selected.</strong> Confirm the payment was received before creating this receipt. Only the selected investigations will be billed; the remaining order items stay pending.</div>
             <div v-if="readOnly" class="dialog-body receipt-view-body">
               <div class="receipt-view">
                 <header class="receipt-view-banner">
@@ -231,7 +283,7 @@
                     class="input"
                     :class="{ 'input-invalid': fieldErrors.investigation_type }"
                     required
-                    :disabled="readOnly"
+                    :disabled="readOnly || hasLinkedOrderItems"
                     @change="handleInvestigationTypeChange"
                     :aria-invalid="Boolean(fieldErrors.investigation_type)"
                     :aria-describedby="fieldErrors.investigation_type ? 'investigation-type-error' : undefined"
@@ -251,7 +303,7 @@
                     :class="{ 'input-invalid': fieldErrors.receipt_number }"
                     type="text"
                     maxlength="255"
-                    :readonly="readOnly"
+                    :readonly="readOnly || hasLinkedOrderItems"
                     :aria-invalid="Boolean(fieldErrors.receipt_number)"
                     :aria-describedby="fieldErrors.receipt_number ? 'receipt-number-error' : undefined"
                   />
@@ -267,7 +319,7 @@
                     :class="{ 'input-invalid': fieldErrors.patient_name }"
                     type="text"
                     maxlength="255"
-                    :readonly="readOnly"
+                    :readonly="readOnly || hasLinkedOrderItems"
                     :aria-invalid="Boolean(fieldErrors.patient_name)"
                     :aria-describedby="fieldErrors.patient_name ? 'patient-name-error' : undefined"
                   />
@@ -284,7 +336,7 @@
                     type="tel"
                     maxlength="255"
                     required
-                    :readonly="readOnly"
+                    :readonly="readOnly || hasLinkedOrderItems"
                     :aria-invalid="Boolean(fieldErrors.contact_number)"
                     :aria-describedby="fieldErrors.contact_number ? 'contact-number-error' : undefined"
                   />
@@ -298,7 +350,7 @@
                     v-model="form.doctor_name"
                     class="input"
                     :class="{ 'input-invalid': fieldErrors.doctor_name }"
-                    :disabled="readOnly"
+                    :disabled="readOnly || hasLinkedOrderItems"
                     required
                     :aria-invalid="Boolean(fieldErrors.doctor_name)"
                     :aria-describedby="fieldErrors.doctor_name ? 'doctor-name-error' : undefined"
@@ -319,7 +371,7 @@
                   <span>Receipt total</span>
                   <strong>{{ formatPrice(formTotal) }}</strong>
                 </div>
-                <button v-if="!readOnly" class="btn btn-outline btn-sm" type="button" @click="addItem">
+                <button v-if="!readOnly && !hasLinkedOrderItems" class="btn btn-outline btn-sm" type="button" @click="addItem">
                   <Plus :size="15" /> Add item
                 </button>
               </div>
@@ -339,7 +391,7 @@
                     <strong v-if="item.investigation_id" class="accordion-price">{{ formatAmount(priceFor(item)) }}</strong>
                   </button>
                   <button
-                    v-if="!readOnly && form.items.length > 1"
+                    v-if="!readOnly && !hasLinkedOrderItems && form.items.length > 1"
                     class="icon-btn danger-action"
                     type="button"
                     :aria-label="'Remove investigation ' + item.number"
@@ -357,7 +409,7 @@
                       v-model.number="item.investigation_id"
                       class="input"
                       :class="{ 'input-invalid': itemError(index, 'investigation_id') }"
-                      :disabled="readOnly"
+                    :disabled="readOnly || Number(item.investigation_order_item_id) > 0"
                     required
                       :aria-invalid="Boolean(itemError(index, 'investigation_id'))"
                     >
@@ -389,7 +441,7 @@
                       type="number"
                       min="0"
                       step="0.01"
-                      :disabled="readOnly"
+                      :disabled="readOnly || Number(item.investigation_order_item_id) > 0"
                     required
                       :aria-invalid="Boolean(itemError(index, 'discount'))"
                     />
@@ -565,6 +617,8 @@ let nextItemKey = 0
 let nextItemNumber = 1
 let receiptNumberRequestId = 0
 let dailySummaryRequestId = 0
+let pendingOrderRequestId = 0
+let pendingSearchTimer = null
 const receipts = ref([])
 const investigations = ref([])
 const technicians = ref([])
@@ -589,6 +643,15 @@ const dailySummary = ref({
   total_investigation_count: 0,
 })
 const dialogOpen = ref(false)
+const pendingOrdersOpen = ref(false)
+const pendingOrders = ref([])
+const pendingSearch = ref('')
+const pendingDate = ref(currentDate())
+const pendingType = ref('all')
+const pendingOrdersLoading = ref(false)
+const pendingOrdersError = ref('')
+const selectedPendingByOrder = ref({})
+const pendingReceiptOrderId = ref(null)
 const moneyReceiptOpen = ref(false)
 const selectedMoneyReceipt = ref(null)
 const dialogMode = ref('create')
@@ -600,6 +663,26 @@ const form = reactive({ receipt_date: '', investigation_type: 'indoor', receipt_
 
 const investigationOptions = computed(() => [...investigations.value]
   .sort((first, second) => first.name.localeCompare(second.name)))
+const pendingOrderGroups = computed(() => {
+  const groups = new Map()
+  for (const item of pendingOrders.value) {
+    const key = Number(item.appointment_serial_number || item.order_id)
+    if (!groups.has(key)) groups.set(key, { ...item, order_id: key, items: [] })
+    groups.get(key).items.push(item)
+  }
+  return [...groups.values()]
+})
+watch(pendingOrderGroups, (groups) => {
+  const selections = { ...selectedPendingByOrder.value }
+  let changed = false
+  for (const group of groups) {
+    if (!Object.prototype.hasOwnProperty.call(selections, group.order_id)) {
+      selections[group.order_id] = group.items.map((item) => Number(item.order_item_id))
+      changed = true
+    }
+  }
+  if (changed) selectedPendingByOrder.value = selections
+})
 const dateRangeError = computed(() => {
   if (!fromDate.value || !toDate.value) return 'Select both a from date and a to date.'
   return fromDate.value > toDate.value ? 'From date must be on or before the to date.' : ''
@@ -636,6 +719,7 @@ const sortedReceipts = computed(() => {
 })
 const availableDoctors = computed(() => doctors.value.filter((doctor) => doctor.type?.toLowerCase() === form.investigation_type))
 const readOnly = computed(() => dialogMode.value === 'view')
+const hasLinkedOrderItems = computed(() => form.items.some((item) => Number(item.investigation_order_item_id) > 0))
 const dialogTitle = computed(() => readOnly.value ? 'View Investigation Receipt' : editingReceipt.value ? 'Edit Investigation Receipt' : 'Create Investigation Receipt')
 const dialogDescription = computed(() => readOnly.value ? 'Review patient and investigation details.' : editingReceipt.value ? 'Update the receipt and its investigation items.' : 'Enter patient details and add one or more investigations.')
 const actualFeesTotal = computed(() => form.items.reduce((total, item) => total + Number(priceFor(item) || 0), 0))
@@ -685,6 +769,11 @@ function formatInvestigationType(value) {
   return value ? value.charAt(0).toUpperCase() + value.slice(1) : '—'
 }
 
+function receiptHasLinkedOrderItems(receipt) {
+  return [...(receipt.items || []), ...(receipt.cancelled_items || [])]
+    .some((item) => Number(item.investigation_order_item_id) > 0)
+}
+
 function itemError(index, field) {
   return fieldErrors.value['items.' + index + '.' + field] || ''
 }
@@ -715,6 +804,7 @@ function makeItem(item = {}, number = nextItemNumber++) {
     key: nextItemKey++,
     number,
     investigation_id: item.investigation_id ?? '',
+    investigation_order_item_id: item.investigation_order_item_id ?? null,
     originalInvestigationId: item.investigation_id ?? null,
     originalPrice: item.price ?? null,
     discount: item.discount ?? 0,
@@ -819,6 +909,7 @@ async function loadData() {
       })
     }
     await loadDailySummary()
+    if (pendingOrdersOpen.value) await loadPendingOrders()
   } catch (error) {
     const status = error.response?.status
     pageError.value = status === 401
@@ -832,6 +923,86 @@ async function loadData() {
     loading.value = false
   }
 }
+
+async function togglePendingOrders() {
+  pendingOrdersOpen.value = !pendingOrdersOpen.value
+  if (pendingOrdersOpen.value) await loadPendingOrders()
+}
+
+async function loadPendingOrders() {
+  const requestId = ++pendingOrderRequestId
+  pendingOrdersLoading.value = true
+  pendingOrdersError.value = ''
+  try {
+    const params = {}
+    if (pendingSearch.value.trim()) params.search = pendingSearch.value.trim()
+    if (pendingDate.value) params.date = pendingDate.value
+    if (pendingType.value !== 'all') params.investigation_type = pendingType.value
+    const response = await api.get('/admin/investigation-receipts/pending-orders', { params })
+    if (requestId === pendingOrderRequestId) pendingOrders.value = response.data.data || []
+  } catch (error) {
+    if (requestId === pendingOrderRequestId) {
+      pendingOrdersError.value = error.response?.data?.message || 'Pending investigation orders could not be loaded.'
+    }
+  } finally {
+    if (requestId === pendingOrderRequestId) pendingOrdersLoading.value = false
+  }
+}
+
+function isPendingItemSelected(orderId, itemId) {
+  return (selectedPendingByOrder.value[orderId] || []).includes(Number(itemId))
+}
+
+function setPendingItemSelected(orderId, itemId, selected) {
+  const current = new Set(selectedPendingByOrder.value[orderId] || [])
+  if (selected) current.add(Number(itemId))
+  else current.delete(Number(itemId))
+  selectedPendingByOrder.value = { ...selectedPendingByOrder.value, [orderId]: [...current] }
+}
+
+function selectedPendingCount(orderId) {
+  return (selectedPendingByOrder.value[orderId] || []).length
+}
+
+function selectedPendingItems(group) {
+  const selectedIds = new Set(selectedPendingByOrder.value[group.order_id] || [])
+  return group.items.filter((item) => selectedIds.has(Number(item.order_item_id)))
+}
+
+function selectedPendingTotal(orderId, group) {
+  const selectedIds = new Set(selectedPendingByOrder.value[orderId] || [])
+  return group.items.filter((item) => selectedIds.has(Number(item.order_item_id)))
+    .reduce((total, item) => total + Number(item.payable_amount || 0), 0)
+}
+
+async function receivePendingOrder(group) {
+  const selectedItems = selectedPendingItems(group)
+  if (!selectedItems.length) return
+
+  await openDialog(null, 'create')
+  if (!dialogOpen.value) return
+  pendingReceiptOrderId.value = Number(group.order_id)
+  form.investigation_type = group.investigation_type || 'indoor'
+  form.patient_name = group.patient_name || ''
+  form.contact_number = group.contact_number || ''
+  form.doctor_name = group.doctor_name || ''
+  nextItemNumber = 1
+  form.items = selectedItems.map((item) => makeItem({
+    investigation_id: item.investigation_id,
+    investigation_order_item_id: item.order_item_id,
+    discount: item.doctor_discount,
+    price: item.price,
+  }))
+  form.items.forEach((item, index) => { item.number = index + 1 })
+  expandedItemKey.value = form.items[0]?.key ?? null
+  void loadNextReceiptNumber(form.investigation_type)
+}
+
+watch([pendingSearch, pendingDate, pendingType], () => {
+  if (!pendingOrdersOpen.value) return
+  clearTimeout(pendingSearchTimer)
+  pendingSearchTimer = setTimeout(() => void loadPendingOrders(), 250)
+})
 
 async function loadDailySummary() {
   if (dateRangeError.value) {
@@ -877,6 +1048,7 @@ async function loadDailySummary() {
 async function openDialog(receipt = null, mode = 'create') {
   dialogMode.value = mode
   editingReceipt.value = null
+  pendingReceiptOrderId.value = null
   fieldErrors.value = {}
   resetForm()
 
@@ -947,6 +1119,7 @@ async function saveReceipt() {
     contact_number: form.contact_number || null,
     items: form.items.map((item) => ({
       investigation_id: Number(item.investigation_id),
+      investigation_order_item_id: item.investigation_order_item_id ? Number(item.investigation_order_item_id) : null,
       discount: item.discount === '' ? 0 : Number(item.discount),
       customer_requested_discount: item.customer_requested_discount === '' ? 0 : Number(item.customer_requested_discount),
       agent_commission: item.agent_commission === '' ? null : Number(item.agent_commission),
@@ -965,6 +1138,12 @@ async function saveReceipt() {
     }
 
     dialogOpen.value = false
+    if (pendingReceiptOrderId.value !== null) {
+      const selections = { ...selectedPendingByOrder.value }
+      delete selections[pendingReceiptOrderId.value]
+      selectedPendingByOrder.value = selections
+      pendingReceiptOrderId.value = null
+    }
     resetForm()
     editingReceipt.value = null
     fieldErrors.value = {}
@@ -1098,6 +1277,63 @@ onMounted(loadData)
 
 <style scoped>
 .receipt-card { overflow: hidden; }
+.linked-receipt-lock { align-self: center; padding: 5px 7px; border-radius: 8px; color: #64748b; background: #f1f5f9; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.pending-count { display: inline-grid; min-width: 21px; height: 21px; place-items: center; margin-left: 3px; padding: 0 5px; border-radius: 999px; color: #5b45e8; background: #efedff; font-size: 11px; font-weight: 700; }
+.pending-orders-panel { margin: 0 0 18px; padding: 18px; }
+.pending-orders-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; margin-bottom: 16px; }
+.pending-orders-head h2 { margin: 0 0 5px; font-size: 16px; }
+.pending-orders-head p { margin: 0; color: var(--muted); font-size: 12px; }
+.pending-orders-filters { display: flex; align-items: center; gap: 12px; margin: 14px 0 18px; }
+.pending-order-search { display: flex; min-width: 280px; min-height: 58px; flex: 1 1 460px; align-items: center; gap: 12px; padding: 7px 12px 7px 8px; border: 1px solid #c7d2fe; border-radius: 15px; background: linear-gradient(110deg, #f5f3ff 0%, #fff 48%); box-shadow: 0 4px 12px rgba(79, 70, 229, .08); transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease; }
+.pending-order-search:focus-within { transform: translateY(-1px); border-color: #7c6cf2; box-shadow: 0 0 0 4px rgba(99, 102, 241, .13), 0 8px 20px rgba(79, 70, 229, .12); }
+.pending-search-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 11px; color: #fff; background: linear-gradient(140deg, #6154eb, #8b5cf6); box-shadow: 0 4px 9px rgba(99, 102, 241, .24); }
+.pending-search-content { display: grid; min-width: 0; flex: 1; gap: 2px; }
+.pending-search-content small { color: #6759dc; font-size: 9px; font-weight: 800; letter-spacing: .09em; }
+.pending-search-content input { width: 100%; min-width: 0; padding: 0; border: 0; outline: 0; color: #172033; background: transparent; font: inherit; font-size: 13px; }
+.pending-search-content input::placeholder { color: #94a3b8; }
+.pending-search-chip { padding: 5px 9px; border: 1px solid #e4e2ff; border-radius: 8px; color: #6657db; background: #fff; font-size: 10px; font-weight: 700; }
+.pending-orders-filters > select { width: 150px; }
+.pending-orders-filters > span:not(.spacer) { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.pending-order-list { display: grid; gap: 12px; }
+.pending-order-card { overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: #fff; }
+.pending-order-patient { display: flex; width: 100%; min-height: 68px; align-items: center; gap: 12px; padding: 12px 15px; background: #f8faff; cursor: pointer; list-style: none; }
+.pending-order-patient::-webkit-details-marker { display: none; }
+.pending-order-patient::marker { content: ''; }
+.pending-patient-chevron { display: grid; width: 29px; height: 29px; flex: 0 0 auto; place-items: center; border-radius: 9px; color: #5b45e8; background: #efedff; transition: transform .18s ease; }
+.pending-order-card[open] > .pending-order-patient { border-bottom: 1px solid var(--border); }
+.pending-order-card[open] .pending-patient-chevron { transform: rotate(180deg); }
+.pending-patient-main, .pending-order-doctor { display: grid; gap: 4px; }
+.pending-patient-main { min-width: 0; flex: 1; }
+.pending-patient-main strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pending-order-patient small { color: var(--muted); font-size: 11px; font-weight: 400; }
+.pending-order-doctor { text-align: right; }
+.pending-order-doctor small { justify-self: end; width: fit-content; padding: 3px 8px; border-radius: 999px; color: #5b45e8; background: #efedff; font-size: 10px; }
+.pending-order-body { padding: 0 14px 12px; }
+.pending-order-table-wrap { overflow-x: auto; }
+.pending-order-table { width: 100%; min-width: 560px; }
+.pending-order-table th, .pending-order-table td { padding: 10px 12px; }
+.pending-order-table th:first-child, .pending-order-table td:first-child { width: 42px; text-align: center; }
+.pending-order-table th:nth-child(n+3), .pending-order-table td:nth-child(n+3) { text-align: right; white-space: nowrap; }
+.pending-order-table input[type="checkbox"] { width: 16px; height: 16px; accent-color: #5b45e8; }
+.pending-investigation-name { font-weight: 650; }
+.pending-due-cell { color: #059669; font-weight: 700; }
+.pending-order-footer { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 14px; }
+.pending-order-footer > span { color: var(--muted); font-size: 11px; }
+.linked-order-note { margin: 14px 24px 0; padding: 11px 13px; border: 1px solid #bfdbfe; border-radius: 11px; color: #1e40af; background: #eff6ff; font-size: 12px; }
+.linked-order-note strong { margin-right: 4px; }
+@media (max-width: 760px) {
+  .pending-orders-filters { align-items: stretch; flex-wrap: wrap; }
+  .pending-order-search { flex-basis: 100%; }
+  .pending-order-patient { align-items: flex-start; }
+  .pending-order-doctor { max-width: 130px; }
+  .pending-order-footer { align-items: stretch; flex-direction: column; }
+}
+@media (max-width: 480px) {
+  .pending-orders-panel { padding: 13px; }
+  .pending-order-patient { flex-direction: column; }
+  .pending-order-doctor { text-align: left; }
+  .pending-order-doctor > span { justify-self: start; }
+}
 .date-filter { display: inline-flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
 .date-filter input { min-height: 40px; padding: 0 11px; border: 1px solid var(--border); border-radius: 12px; color: #172033; background: #fff; font: inherit; }
 .date-filter { gap: 6px; }
