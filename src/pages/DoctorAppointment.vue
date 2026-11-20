@@ -50,12 +50,12 @@
           <div><h2>Consultation notes (পরামর্শের নোট)</h2><p>Record the patient’s symptoms and examination findings (রোগীর লক্ষণ ও পরীক্ষার পর্যবেক্ষণ লিখুন)।</p></div>
           </div>
           <div class="form-grid">
-            <label class="field full"><span>Chief complaint (প্রধান অভিযোগ) <b>*</b></span><textarea v-model="notes.complaint" rows="3" placeholder="What problem brought the patient in today? (রোগী আজ কী সমস্যা নিয়ে এসেছেন?)"></textarea></label>
-            <label class="field"><span>Affected eye (আক্রান্ত চোখ)</span><select v-model="notes.eye"><option value="Both">Both eyes (দুই চোখ)</option><option value="Right">Right eye (ডান চোখ)</option><option value="Left">Left eye (বাম চোখ)</option><option value="Not specified">Not specified (উল্লেখ নেই)</option></select></label>
-            <label class="field"><span>Vision / visual acuity (দৃষ্টিশক্তি)</span><input v-model="notes.vision" placeholder="e.g. R 6/6 · L 6/9 (যেমন: ডান ৬/৬ · বাম ৬/৯)" /></label>
-            <label class="field full"><span>Examination findings (পরীক্ষার পর্যবেক্ষণ)</span><textarea v-model="notes.examination" rows="4" placeholder="Enter relevant eye examination findings (চোখ পরীক্ষার পর্যবেক্ষণ লিখুন)"></textarea></label>
-            <label class="field full"><span>Assessment / diagnosis (মূল্যায়ন / রোগ নির্ণয়)</span><textarea v-model="notes.assessment" rows="3" placeholder="Doctor’s assessment or diagnosis (ডাক্তারের মূল্যায়ন বা রোগ নির্ণয়)"></textarea></label>
-            <label class="field full"><span>Additional notes (অতিরিক্ত নোট)</span><textarea v-model="notes.plan" rows="2" placeholder="Follow-up advice or other clinical notes (পরবর্তী পরামর্শ বা ক্লিনিক্যাল নোট)"></textarea></label>
+            <label class="field full"><span>Chief complaint (প্রধান অভিযোগ) <b>*</b></span><textarea v-model="notes.complaint" rows="3" placeholder="What problem brought the patient in today?"></textarea></label>
+            <label class="field"><span>Affected eye (আক্রান্ত চোখ)</span><select v-model="notes.eye"><option value="Both">Both eyes</option><option value="Right">Right eye</option><option value="Left">Left eye</option><option value="Not specified">Not specified</option></select></label>
+            <label class="field"><span>Vision / visual acuity (দৃষ্টিশক্তি)</span><input v-model="notes.vision" placeholder="e.g. R 6/6 · L 6/9" /></label>
+            <label class="field full"><span>Examination findings (পরীক্ষার পর্যবেক্ষণ)</span><textarea v-model="notes.examination" rows="4" placeholder="Enter relevant eye examination findings"></textarea></label>
+            <label class="field full"><span>Assessment / diagnosis (মূল্যায়ন / রোগ নির্ণয়)</span><textarea v-model="notes.assessment" rows="3" placeholder="Doctor assessment or diagnosis"></textarea></label>
+            <label class="field full"><span>Additional notes (অতিরিক্ত নোট)</span><textarea v-model="notes.plan" rows="2" placeholder="Follow-up advice or other clinical notes"></textarea></label>
           </div>
         </div>
 
@@ -83,7 +83,42 @@
           <article v-for="(row, index) in medicines" :key="row.key" class="medicine-row">
             <div class="medicine-row-head"><strong>Medicine {{ index + 1 }}</strong><button class="icon-button danger" type="button" aria-label="Remove medicine" @click="removeMedicine(row.key)"><Trash2 :size="16" /></button></div>
             <div class="medicine-fields">
-              <label class="field medicine-name"><span>Medicine <b>*</b></span><select v-model="row.medicine_id" :disabled="catalogLoading" @change="medicineChanged(row)"><option value="">{{ catalogLoading ? 'Loading medicines…' : medicineOptions.length ? 'Select medicine' : 'No active medicines in catalog' }}</option><option v-for="medicine in medicineOptions" :key="medicine.id" :value="medicine.id">{{ medicineOptionLabel(medicine) }}</option></select></label>
+              <div class="field medicine-name">
+                <span>Medicine <b>*</b></span>
+                <div class="medicine-combobox">
+                  <div class="medicine-combobox-control">
+                    <Search :size="16" aria-hidden="true" />
+                    <input
+                      v-model="row.medicineSearch"
+                      type="search"
+                      role="combobox"
+                      aria-autocomplete="list" aria-label="Medicine"
+                      :aria-expanded="row.medicineSearchOpen ? 'true' : 'false'"
+                      :disabled="catalogLoading"
+                      :placeholder="catalogLoading ? 'Loading medicines…' : medicineOptions.length ? 'Search or select a medicine' : 'No active medicines in catalog'"
+                      @focus="openMedicineSearch(row)"
+                      @input="filterMedicineSearch(row)"
+                      @keydown.enter.prevent="selectFirstMedicine(row)"
+                      @keydown.esc="row.medicineSearchOpen = false"
+                      @blur="closeMedicineSearch(row)"
+                    />
+                    <button class="medicine-combobox-toggle" type="button" :disabled="catalogLoading || !medicineOptions.length" :aria-label="row.medicineSearchOpen ? 'Close medicine list' : 'Open medicine list'" @mousedown.prevent @click="toggleMedicineSearch(row)">
+                      <ChevronDown :size="16" />
+                    </button>
+                  </div>
+                  <div v-if="row.medicineSearchOpen" class="medicine-combobox-options">
+                    <div role="listbox">
+                      <div v-if="!filteredMedicineOptions(row).length" class="medicine-combobox-empty">{{ catalogLoading ? 'Loading medicines…' : row.medicineSearch.trim() ? 'No medicines match your search.' : 'Type a medicine name to search.' }}</div>
+                      <button v-for="medicine in filteredMedicineOptions(row)" :key="medicine.id" class="medicine-combobox-option" type="button" role="option" :aria-selected="Number(row.medicine_id) === Number(medicine.id)" @pointerdown.prevent="selectMedicine(row, medicine)">
+                        {{ medicine.name }}
+                      </button>
+                    </div>
+                    <button v-if="row.medicineSearch.trim() && !filteredMedicineOptions(row).length && !catalogLoading" class="medicine-combobox-create" type="button" @pointerdown.prevent="startMedicineCreate(row)">
+                      <Plus :size="15" /> Add “{{ row.medicineSearch.trim() }}” to medicine catalog
+                    </button>
+                  </div>
+                </div>
+              </div>
               <label class="field"><span>Strength</span><input v-model="row.strength" placeholder="e.g. 0.5%" /></label>
               <label class="field"><span>Dose</span><input v-model="row.dose" placeholder="e.g. 1 drop" /></label>
               <label class="field"><span>Frequency</span><input v-model="row.frequency" placeholder="e.g. 4 times daily" /></label>
@@ -159,6 +194,40 @@
   </div>
 
   <Teleport to="body">
+    <div v-if="medicineCreateOpen" class="medicine-create-backdrop" @click.self="closeMedicineCreate">
+      <section class="medicine-create-modal" role="dialog" aria-modal="true" aria-labelledby="medicine-create-title">
+        <header class="medicine-create-header">
+          <div><h2 id="medicine-create-title">Add medicine to catalog</h2><p>Save it to the medicine catalog and use it in this prescription.</p></div>
+          <button class="icon-button" type="button" aria-label="Close" :disabled="medicineCreateSaving" @click="closeMedicineCreate"><X :size="17" /></button>
+        </header>
+        <form class="medicine-create-form" @submit.prevent="createMedicineFromPrescription">
+          <div class="medicine-create-fields">
+            <label class="field">
+              <span>Medicine name <b>*</b></span>
+              <input id="new-medicine-name" v-model="newMedicineForm.name" required maxlength="255" :aria-invalid="medicineCreateErrors.name ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.name ? 'new-medicine-name-error' : undefined" />
+              <small v-if="medicineCreateErrors.name" id="new-medicine-name-error" class="medicine-create-error">{{ medicineCreateErrors.name }}</small>
+            </label>
+            <label class="field"><span>Generic name</span><input id="new-medicine-generic" v-model="newMedicineForm.generic_name" maxlength="255" :aria-invalid="medicineCreateErrors.generic_name ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.generic_name ? 'new-medicine-generic-error' : undefined" /><small v-if="medicineCreateErrors.generic_name" id="new-medicine-generic-error" class="medicine-create-error">{{ medicineCreateErrors.generic_name }}</small></label>
+            <label class="field"><span>Brand name</span><input id="new-medicine-brand" v-model="newMedicineForm.brand_name" maxlength="255" :aria-invalid="medicineCreateErrors.brand_name ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.brand_name ? 'new-medicine-brand-error' : undefined" /><small v-if="medicineCreateErrors.brand_name" id="new-medicine-brand-error" class="medicine-create-error">{{ medicineCreateErrors.brand_name }}</small></label>
+            <label class="field"><span>Strength</span><input id="new-medicine-strength" v-model="newMedicineForm.strength" maxlength="100" placeholder="e.g. 0.5% or 250 mg" :aria-invalid="medicineCreateErrors.strength ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.strength ? 'new-medicine-strength-error' : undefined" /><small v-if="medicineCreateErrors.strength" id="new-medicine-strength-error" class="medicine-create-error">{{ medicineCreateErrors.strength }}</small></label>
+            <label class="field">
+              <span>Dosage form <b>*</b></span>
+              <select id="new-medicine-dosage-form" v-model="newMedicineForm.dosage_form" required :aria-invalid="medicineCreateErrors.dosage_form ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.dosage_form ? 'new-medicine-dosage-form-error' : undefined">
+                <option value="">Select dosage form</option><option>Eye drops</option><option>Eye ointment</option><option>Eye gel</option><option>Tablet</option><option>Capsule</option><option>Syrup</option><option>Suspension</option><option>Other</option>
+              </select>
+              <small v-if="medicineCreateErrors.dosage_form" id="new-medicine-dosage-form-error" class="medicine-create-error">{{ medicineCreateErrors.dosage_form }}</small>
+            </label>
+            <label class="field"><span>Category</span><input id="new-medicine-category" v-model="newMedicineForm.category" maxlength="60" placeholder="e.g. Antibiotic" :aria-invalid="medicineCreateErrors.category ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.category ? 'new-medicine-category-error' : undefined" /><small v-if="medicineCreateErrors.category" id="new-medicine-category-error" class="medicine-create-error">{{ medicineCreateErrors.category }}</small></label>
+            <label class="field"><span>Route</span><select id="new-medicine-route" v-model="newMedicineForm.route" :aria-invalid="medicineCreateErrors.route ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.route ? 'new-medicine-route-error' : undefined"><option value="">Select route</option><option>Ophthalmic</option><option>Oral</option><option>Topical</option><option>Other</option></select><small v-if="medicineCreateErrors.route" id="new-medicine-route-error" class="medicine-create-error">{{ medicineCreateErrors.route }}</small></label>
+          </div>
+          <p v-if="medicineCreateError" class="medicine-create-error-summary" role="alert">{{ medicineCreateError }}</p>
+          <footer class="medicine-create-footer">
+            <button class="btn btn-outline" type="button" :disabled="medicineCreateSaving" @click="closeMedicineCreate">Cancel</button>
+            <button class="btn btn-primary" type="submit" :disabled="medicineCreateSaving"><LoaderCircle v-if="medicineCreateSaving" :size="16" class="spin" /><Plus v-else :size="16" />{{ medicineCreateSaving ? 'Saving…' : 'Save and select' }}</button>
+          </footer>
+        </form>
+      </section>
+    </div>
     <div v-if="printPreviewOpen" class="print-preview-root">
       <div class="print-preview-backdrop" @click.self="printPreviewOpen = false">
         <section class="print-preview-sheet" role="dialog" aria-modal="true" aria-labelledby="print-preview-title">
@@ -192,7 +261,7 @@
               <h3>Consultation (পরামর্শ)</h3>
               <div class="print-detail-grid">
                 <div class="print-detail wide"><span>Chief complaint (প্রধান অভিযোগ)</span><p>{{ notes.complaint || '—' }}</p></div>
-                <div class="print-detail"><span>Affected eye (আক্রান্ত চোখ)</span><p>{{ notes.eye === 'Both' ? 'Both eyes (দুই চোখ)' : notes.eye }}</p></div>
+                <div class="print-detail"><span>Affected eye (আক্রান্ত চোখ)</span><p>{{ notes.eye === 'Both' ? 'Both eyes' : notes.eye }}</p></div>
                 <div class="print-detail"><span>Visual acuity (দৃষ্টিশক্তি)</span><p>{{ notes.vision || '—' }}</p></div>
                 <div class="print-detail wide"><span>Examination findings (পরীক্ষার পর্যবেক্ষণ)</span><p>{{ notes.examination || '—' }}</p></div>
                 <div class="print-detail wide"><span>Assessment / diagnosis (মূল্যায়ন / রোগ নির্ণয়)</span><p>{{ notes.assessment || '—' }}</p></div>
@@ -263,7 +332,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { Activity, ArrowLeft, Eye, FileCheck2, FilePlus2, FileText, FlaskConical, HeartPulse, LoaderCircle, Pencil, Pill, Plus, Printer, Save, Stethoscope, Trash2, UserRound } from '@lucide/vue'
+import { Activity, ArrowLeft, ChevronDown, Eye, FileCheck2, FilePlus2, FileText, FlaskConical, HeartPulse, LoaderCircle, Pencil, Pill, Plus, Printer, Save, Search, Stethoscope, Trash2, UserRound, X } from '@lucide/vue'
 import { toast } from 'vue-sonner'
 import api from '../api/axios'
 
@@ -279,6 +348,12 @@ const notes = ref({ complaint: '', eye: '', vision: '', examination: '', assessm
 const prescriptionAdvice = ref('')
 const medicines = ref([])
 const medicineOptions = ref([])
+const medicineCreateOpen = ref(false)
+const medicineCreateSaving = ref(false)
+const medicineCreateError = ref('')
+const medicineCreateErrors = ref({})
+const medicineCreateRow = ref(null)
+const newMedicineForm = ref({ name: '', generic_name: '', brand_name: '', strength: '', dosage_form: '', category: '', route: '' })
 const investigationOptions = ref([])
 const catalogLoading = ref(false)
 const catalogError = ref('')
@@ -355,7 +430,7 @@ async function startPrescription() {
 }
 
 function addMedicine() {
-  medicines.value.push({ id: null, key: `new-${Date.now()}-${Math.random()}`, medicine_id: '', strength: '', dose: '', frequency: '', duration: '', route: '', eye_side: '', instructions: '' })
+  medicines.value.push({ id: null, key: `new-${Date.now()}-${Math.random()}`, medicine_id: '', medicineSearch: '', medicineSearchOpen: false, strength: '', dose: '', frequency: '', duration: '', route: '', eye_side: '', instructions: '' })
 }
 
 function removeMedicine(key) {
@@ -429,15 +504,109 @@ function applyInvestigationEdit(item) {
   savedAt.value = ''
 }
 
+function selectedMedicine(row) {
+  return medicineOptions.value.find((item) => Number(item.id) === Number(row.medicine_id)) || null
+}
+
+function openMedicineSearch(row) {
+  row.medicineSearchOpen = true
+  if (selectedMedicine(row)) row.medicineSearch = ''
+}
+
+function filterMedicineSearch(row) {
+  const selected = selectedMedicine(row)
+  if (selected && row.medicineSearch.trim() !== selected.name) {
+    row.medicine_id = ''
+    row.strength = ''
+    row.route = ''
+  }
+  row.medicineSearchOpen = true
+}
+
+function filteredMedicineOptions(row) {
+  const query = String(row.medicineSearch || '').trim().toLowerCase()
+  return medicineOptions.value.filter((medicine) => String(medicine.name || '').toLowerCase().includes(query))
+}
+
+function startMedicineCreate(row) {
+  medicineCreateRow.value = row
+  medicineCreateError.value = ''
+  medicineCreateErrors.value = {}
+  newMedicineForm.value = {
+    name: String(row.medicineSearch || '').trim(),
+    generic_name: '',
+    brand_name: '',
+    strength: '',
+    dosage_form: '',
+    category: '',
+    route: '',
+  }
+  row.medicineSearchOpen = false
+  medicineCreateOpen.value = true
+}
+
+function closeMedicineCreate() {
+  if (medicineCreateSaving.value) return
+  medicineCreateOpen.value = false
+  medicineCreateRow.value = null
+}
+
+async function createMedicineFromPrescription() {
+  medicineCreateSaving.value = true
+  medicineCreateError.value = ''
+  medicineCreateErrors.value = {}
+  try {
+    const { data } = await api.post('/doctor/medicines', { ...newMedicineForm.value, is_active: true })
+    const medicine = data.data || data
+    medicineOptions.value = [...medicineOptions.value.filter((item) => Number(item.id) !== Number(medicine.id)), medicine]
+      .sort((first, second) => String(first.name || '').localeCompare(String(second.name || '')))
+    if (medicineCreateRow.value) selectMedicine(medicineCreateRow.value, medicine)
+    savedAt.value = ''
+    medicineCreateOpen.value = false
+    medicineCreateRow.value = null
+    toast.success('Medicine added to catalog and selected for this prescription.')
+  } catch (error) {
+    const errors = error.response?.data?.errors || {}
+    medicineCreateErrors.value = Object.fromEntries(Object.entries(errors).map(([field, messages]) => [field, Array.isArray(messages) ? messages[0] : String(messages)]))
+    medicineCreateError.value = Object.keys(errors).length ? '' : error.response?.data?.message || 'The medicine could not be saved. Please try again.'
+  } finally {
+    medicineCreateSaving.value = false
+  }
+}
+
+function selectMedicine(row, medicine) {
+  row.medicine_id = medicine.id
+  row.medicineSearch = medicine.name || ''
+  row.medicineSearchOpen = false
+  medicineChanged(row)
+}
+
+function selectFirstMedicine(row) {
+  const first = filteredMedicineOptions(row)[0]
+  if (first) selectMedicine(row, first)
+}
+
+function closeMedicineSearch(row) {
+  window.setTimeout(() => {
+    row.medicineSearchOpen = false
+    const selected = selectedMedicine(row)
+    if (selected && !row.medicineSearch.trim()) row.medicineSearch = selected.name || ''
+  }, 120)
+}
+
+function toggleMedicineSearch(row) {
+  if (row.medicineSearchOpen) {
+    row.medicineSearchOpen = false
+    return
+  }
+  openMedicineSearch(row)
+}
+
 function medicineChanged(row) {
   const medicine = medicineOptions.value.find((item) => Number(item.id) === Number(row.medicine_id))
   if (!medicine) return
   row.strength = medicine.strength || ''
   row.route = medicine.route || ''
-}
-
-function medicineOptionLabel(medicine) {
-  return medicine.name || ''
 }
 
 function medicineName(id) {
@@ -483,6 +652,8 @@ function loadPrescriptionStage() {
     key: `saved-${item.id}`,
     medicine_id: item.medicine_id,
     medicine_name: item.medicine_name,
+    medicineSearch: item.medicine_name || '',
+    medicineSearchOpen: false,
     strength: item.strength || '',
     dose: item.dose || '',
     frequency: item.frequency || '',
@@ -710,6 +881,29 @@ function statusLabel(status) {
 .medicine-row-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; color: var(--text); font-size: 13px; }
 .medicine-fields { display: grid; grid-template-columns: 1.7fr 1fr 1fr 1.3fr 1fr 1.2fr; gap: 12px; }
 .medicine-name { grid-column: span 2; }
+.medicine-combobox { position: relative; }
+.medicine-combobox-control { position: relative; display: flex; align-items: center; }
+.medicine-combobox-control > svg { position: absolute; left: 12px; z-index: 1; color: var(--muted); pointer-events: none; }
+.medicine-combobox-control input { padding-right: 38px; padding-left: 36px; }
+.medicine-combobox-toggle { position: absolute; right: 5px; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 8px; color: var(--muted); background: transparent; }
+.medicine-combobox-toggle:hover:not(:disabled) { color: var(--primary); background: #f5f3ff; }
+.medicine-combobox-toggle:disabled { cursor: not-allowed; opacity: .5; }
+.medicine-combobox-options { position: absolute; top: calc(100% + 5px); left: 0; right: 0; z-index: 20; max-height: 240px; overflow-y: auto; padding: 5px; border: 1px solid var(--border); border-radius: 11px; background: #fff; box-shadow: 0 12px 30px rgba(15, 23, 42, .14); }
+.medicine-combobox-option { display: block; width: 100%; padding: 10px 11px; border-radius: 7px; color: var(--text); background: #fff; font: inherit; font-size: 13px; text-align: left; }
+.medicine-combobox-option:hover, .medicine-combobox-option[aria-selected="true"] { color: var(--primary); background: #f5f3ff; }
+.medicine-combobox-empty { padding: 12px 11px; color: var(--muted); font-size: 12px; }
+.medicine-combobox-create { display: flex; align-items: center; gap: 8px; width: 100%; margin-top: 4px; padding: 10px 11px; border-top: 1px solid var(--border); border-radius: 7px; color: var(--primary); background: #fff; font: inherit; font-size: 12px; font-weight: 650; text-align: left; cursor: pointer; }
+.medicine-combobox-create:hover { background: #f5f3ff; }
+.medicine-create-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; overflow-y: auto; padding: 24px; background: rgba(15, 23, 42, .55); }
+.medicine-create-modal { width: min(680px, 100%); overflow: hidden; border: 1px solid var(--border); border-radius: 18px; background: #fff; box-shadow: 0 24px 80px rgba(15, 23, 42, .25); }
+.medicine-create-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 21px 24px; border-bottom: 1px solid var(--border); }
+.medicine-create-header h2 { margin: 0; color: var(--text); font-size: 18px; }
+.medicine-create-header p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+.medicine-create-form { padding: 20px 24px 22px; }
+.medicine-create-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 15px; }
+.medicine-create-error { color: #b91c1c; font-size: 11px; }
+.medicine-create-error-summary { margin: 14px 0 0; padding: 10px 12px; border: 1px solid #fecaca; border-radius: 9px; color: #991b1b; background: #fff7f7; font-size: 12px; }
+.medicine-create-footer { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .medicine-instructions { grid-column: span 3; }
 .icon-button { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: white; cursor: pointer; }
 .icon-button.danger { color: #dc2626; }
@@ -762,6 +956,7 @@ function statusLabel(status) {
 @media (max-width: 1080px) { .workspace-grid { grid-template-columns: minmax(0, 1fr) 275px; } .medicine-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } .medicine-name, .medicine-instructions { grid-column: span 2; } }
 @media (max-width: 760px) { .patient-banner { flex-wrap: wrap; } .patient-banner-detail { padding-left: 10px; } .patient-serial { margin-left: 0; text-align: left; } .workspace-grid { grid-template-columns: 1fr; } .side-column { grid-template-columns: 1fr; } .workspace-footer { position: static; align-items: stretch; flex-direction: column; } .workspace-footer > div { justify-content: flex-end; } }
 @media (max-width: 760px) { .investigation-edit-row { grid-template-columns: 1fr 1fr; } .investigation-edit-row .field:first-child { grid-column: 1 / -1; } .investigation-edit-actions { grid-column: 1 / -1; justify-content: flex-end; } }
+@media (max-width: 560px) { .medicine-create-backdrop { align-items: start; padding: 12px; } .medicine-create-header, .medicine-create-form { padding-right: 17px; padding-left: 17px; } .medicine-create-fields { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .doctor-consultation .page-head { align-items: flex-start; flex-direction: column; } .head-actions { width: 100%; justify-content: space-between; } .consultation-tabs { width: 100%; overflow-x: auto; } .visit-page-link { padding: 0 10px; font-size: 12px; } .workspace-card { padding: 16px; } .form-grid, .medicine-fields { grid-template-columns: 1fr; } .medicine-name, .medicine-instructions { grid-column: auto; } .investigation-preview { grid-template-columns: 1fr 1fr; } .investigation-preview .field:first-child { grid-column: 1 / -1; } .add-investigation { grid-column: 1 / -1; } .stage-chip { display: none; } .ordered-test { flex-wrap: wrap; } .ordered-test-payable { margin-left: auto; } .investigation-edit-row { grid-template-columns: 1fr; } .investigation-edit-row .field:first-child, .investigation-edit-actions { grid-column: auto; } }
 @media print {
   @page { size: A4; margin: 12mm; }
