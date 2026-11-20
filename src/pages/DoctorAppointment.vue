@@ -51,8 +51,24 @@
           </div>
           <div class="form-grid">
             <label class="field full"><span>Chief complaint (প্রধান অভিযোগ) <b>*</b></span><textarea v-model="notes.complaint" rows="3" placeholder="What problem brought the patient in today?"></textarea></label>
-            <label class="field"><span>Affected eye (আক্রান্ত চোখ)</span><select v-model="notes.eye"><option value="Both">Both eyes</option><option value="Right">Right eye</option><option value="Left">Left eye</option><option value="Not specified">Not specified</option></select></label>
-            <label class="field"><span>Vision / visual acuity (দৃষ্টিশক্তি)</span><input v-model="notes.vision" placeholder="e.g. R 6/6 · L 6/9" /></label>
+            <div class="clinical-vision-row">
+              <label class="field"><span>Affected eye (আক্রান্ত চোখ)</span><select v-model="notes.eye"><option value="Both">Both eyes</option><option value="Right">Right eye</option><option value="Left">Left eye</option><option value="Not specified">Not specified</option></select></label>
+              <label class="field">
+                <span>Right eye (R / OD)</span>
+                <select v-model="visualAcuity.right">
+                  <option value="">Not recorded</option><option value="6/3">6/3</option><option value="6/4">6/4</option><option value="6/5">6/5</option><option value="6/6">6/6</option><option value="6/9">6/9</option><option value="6/12">6/12</option><option value="6/18">6/18</option><option value="6/24">6/24</option><option value="6/36">6/36</option><option value="6/60">6/60</option><option value="6/120">6/120</option><option value="CF">CF (count fingers)</option><option value="HM">HM (hand motion)</option><option value="LP">LP (light perception)</option><option value="NLP">NLP (no light perception)</option><option value="custom">Custom notation</option>
+                </select>
+                <input v-if="visualAcuity.right === 'custom'" v-model="visualAcuity.rightCustom" aria-label="Custom right eye visual acuity" placeholder="e.g. CF at 1 m or logMAR" />
+              </label>
+              <label class="field">
+                <span>Left eye (L / OS)</span>
+                <select v-model="visualAcuity.left">
+                  <option value="">Not recorded</option><option value="6/3">6/3</option><option value="6/4">6/4</option><option value="6/5">6/5</option><option value="6/6">6/6</option><option value="6/9">6/9</option><option value="6/12">6/12</option><option value="6/18">6/18</option><option value="6/24">6/24</option><option value="6/36">6/36</option><option value="6/60">6/60</option><option value="6/120">6/120</option><option value="CF">CF (count fingers)</option><option value="HM">HM (hand motion)</option><option value="LP">LP (light perception)</option><option value="NLP">NLP (no light perception)</option><option value="custom">Custom notation</option>
+                </select>
+                <input v-if="visualAcuity.left === 'custom'" v-model="visualAcuity.leftCustom" aria-label="Custom left eye visual acuity" placeholder="e.g. CF at 1 m or logMAR" />
+              </label>
+            </div>
+            <label class="field full visual-acuity-note"><span>Correction / extra note</span><input v-model="visualAcuity.additional" placeholder="Optional: with glasses, without correction, pinhole, etc." /></label>
             <label class="field full"><span>Examination findings (পরীক্ষার পর্যবেক্ষণ)</span><textarea v-model="notes.examination" rows="4" placeholder="Enter relevant eye examination findings"></textarea></label>
             <label class="field full"><span>Assessment / diagnosis (মূল্যায়ন / রোগ নির্ণয়)</span><textarea v-model="notes.assessment" rows="3" placeholder="Doctor assessment or diagnosis"></textarea></label>
             <label class="field full"><span>Additional notes (অতিরিক্ত নোট)</span><textarea v-model="notes.plan" rows="2" placeholder="Follow-up advice or other clinical notes"></textarea></label>
@@ -125,7 +141,7 @@
               <label class="field"><span>Duration</span><input v-model="row.duration" placeholder="e.g. 7 days" /></label>
               <label class="field"><span>Route</span><input v-model="row.route" placeholder="e.g. Ophthalmic, oral" /></label>
               <label class="field"><span>Eye side</span><select v-model="row.eye_side"><option value="">Not applicable</option><option>Both eyes</option><option>Right eye</option><option>Left eye</option></select></label>
-              <label class="field medicine-instructions"><span>Instructions</span><input v-model="row.instructions" placeholder="e.g. Shake well before use" /></label>
+              <label class="field medicine-instructions"><span>Patient instructions (enter in Bangla for print)</span><input v-model="row.instructions" placeholder="Enter patient instructions in Bangla" /></label>
             </div>
           </article>
         </div>
@@ -262,7 +278,7 @@
               <div class="print-detail-grid">
                 <div class="print-detail wide"><span>Chief complaint (প্রধান অভিযোগ)</span><p>{{ notes.complaint || '—' }}</p></div>
                 <div class="print-detail"><span>Affected eye (আক্রান্ত চোখ)</span><p>{{ notes.eye === 'Both' ? 'Both eyes' : notes.eye }}</p></div>
-                <div class="print-detail"><span>Visual acuity (দৃষ্টিশক্তি)</span><p>{{ notes.vision || '—' }}</p></div>
+                <div class="print-detail"><span>Visual acuity (দৃষ্টিশক্তি)</span><p>{{ visualAcuityText || '—' }}</p></div>
                 <div class="print-detail wide"><span>Examination findings (পরীক্ষার পর্যবেক্ষণ)</span><p>{{ notes.examination || '—' }}</p></div>
                 <div class="print-detail wide"><span>Assessment / diagnosis (মূল্যায়ন / রোগ নির্ণয়)</span><p>{{ notes.assessment || '—' }}</p></div>
                 <div class="print-detail wide"><span>Additional notes (অতিরিক্ত নোট)</span><p>{{ notes.plan || '—' }}</p></div>
@@ -272,17 +288,22 @@
             <section class="print-section">
               <h3>Prescription <small>{{ prescriptionStage === 'follow_up' ? 'After report review' : 'Initial' }}</small></h3>
               <table class="print-table">
-                <thead><tr><th>#</th><th>Medicine</th><th>Strength</th><th>Dose & route</th><th>Frequency</th><th>Duration</th></tr></thead>
+                <thead><tr><th>#</th><th>Medicine</th><th>Strength</th><th>মাত্রা / চোখ</th><th>ব্যবহারের সময়</th><th>মেয়াদ</th></tr></thead>
                 <tbody>
-                  <tr v-for="(row, index) in medicines" :key="row.id">
-                    <td>{{ index + 1 }}</td><td>{{ medicineName(row.medicine_id) || '—' }}</td><td>{{ row.strength || '—' }}</td>
-                    <td>{{ row.dose || '—' }}<br /><small>{{ [row.route, row.eye_side].filter(Boolean).join(' · ') || '—' }}</small></td>
-                    <td>{{ row.frequency || '—' }}</td><td>{{ row.duration || '—' }}</td>
-                  </tr>
+                  <template v-for="(row, index) in medicines" :key="row.key">
+                    <tr>
+                      <td>{{ index + 1 }}</td><td>{{ medicineName(row.medicine_id) || '—' }}</td><td>{{ row.strength || '—' }}</td>
+                      <td>{{ formatBanglaDose(row.dose) || '—' }}<br /><small>{{ [formatBanglaRoute(row.route), formatBanglaEyeSide(row.eye_side)].filter(Boolean).join(' · ') || '—' }}</small></td>
+                      <td>{{ formatBanglaFrequency(row.frequency) || '—' }}</td><td>{{ formatBanglaDuration(row.duration) || '—' }}</td>
+                    </tr>
+                    <tr v-if="row.instructions" class="print-instruction-row">
+                      <td colspan="6"><strong>নির্দেশনা:</strong> {{ formatBanglaInstruction(row.instructions) }}</td>
+                    </tr>
+                  </template>
+                  <tr v-if="!medicines.length"><td colspan="6">No medicines listed.</td></tr>
                 </tbody>
               </table>
               <div class="print-detail print-advice"><span>Advice</span><p>{{ prescriptionAdvice || '—' }}</p></div>
-              <div v-for="(row, index) in medicines" :key="`instruction-${row.key}`" class="print-medicine-instruction"><strong>{{ index + 1 }}. {{ medicineName(row.medicine_id) || 'Medicine' }}:</strong> {{ row.instructions || '—' }}</div>
             </section>
 
             <footer class="print-document-footer">
@@ -344,7 +365,13 @@ const errorMessage = ref('')
 const printPreviewOpen = ref(false)
 const isInvestigationPage = computed(() => route.name === 'doctor.appointment.investigations')
 const activeClinicalTab = ref('consultation')
-const notes = ref({ complaint: '', eye: '', vision: '', examination: '', assessment: '', plan: '' })
+const notes = ref({ complaint: '', eye: '', examination: '', assessment: '', plan: '' })
+const visualAcuity = ref({ right: '', left: '', rightCustom: '', leftCustom: '', additional: '' })
+const visualAcuityText = computed(() => {
+  const right = visualAcuity.value.right === 'custom' ? visualAcuity.value.rightCustom.trim() : visualAcuity.value.right
+  const left = visualAcuity.value.left === 'custom' ? visualAcuity.value.leftCustom.trim() : visualAcuity.value.left
+  return [right ? `R ${right}` : '', left ? `L ${left}` : '', visualAcuity.value.additional.trim()].filter(Boolean).join(', ')
+})
 const prescriptionAdvice = ref('')
 const medicines = ref([])
 const medicineOptions = ref([])
@@ -620,11 +647,11 @@ function hydrateClinicalData() {
   notes.value = {
     complaint: consultation?.chief_complaint || '',
     eye: consultation?.affected_eye || '',
-    vision: consultation?.visual_acuity || '',
     examination: consultation?.examination_findings || '',
     assessment: consultation?.assessment || '',
     plan: consultation?.notes || '',
   }
+  hydrateVisualAcuity(consultation?.visual_acuity || '')
   followupPlan.value = consultation?.follow_up_plan || 'none'
   followupNote.value = consultation?.follow_up_note || ''
   operationProcedure.value = consultation?.operation_procedure || ''
@@ -641,6 +668,34 @@ function hydrateClinicalData() {
     status: item.status,
     is_paid: item.is_paid === true,
   }))
+}
+
+function hydrateVisualAcuity(value) {
+  const acuity = { right: '', left: '', rightCustom: '', leftCustom: '', additional: '' }
+  const source = String(value || '').trim()
+  const segments = source.split(/[,;|]|\s+(?=(?:right|left|od|os|r|l)\b)/i)
+  let parsedEye = false
+
+  for (const segment of segments) {
+    const match = segment.trim().match(/^(right|left|od|os|r|l)\b\s*[:=]?\s*(.+)$/i)
+    if (!match) {
+      if (segment.trim()) acuity.additional = [acuity.additional, segment.trim()].filter(Boolean).join('; ')
+      continue
+    }
+
+    parsedEye = true
+    const side = ['right', 'od', 'r'].includes(match[1].toLowerCase()) ? 'right' : 'left'
+    const reading = match[2].trim()
+    if (['6/3', '6/4', '6/5', '6/6', '6/9', '6/12', '6/18', '6/24', '6/36', '6/60', '6/120', 'CF', 'HM', 'LP', 'NLP'].includes(reading.toUpperCase())) {
+      acuity[side] = reading.toUpperCase() === 'CF' || reading.toUpperCase() === 'HM' || reading.toUpperCase() === 'LP' || reading.toUpperCase() === 'NLP' ? reading.toUpperCase() : reading
+    } else if (reading) {
+      acuity[side] = 'custom'
+      acuity[`${side}Custom`] = reading
+    }
+  }
+
+  if (!parsedEye && source) acuity.additional = source
+  visualAcuity.value = acuity
 }
 
 function loadPrescriptionStage() {
@@ -683,7 +738,7 @@ async function saveConsultation() {
   await saveSection('consultation', {
     chief_complaint: notes.value.complaint,
     affected_eye: notes.value.eye || null,
-    visual_acuity: notes.value.vision || null,
+    visual_acuity: visualAcuityText.value || null,
     examination_findings: notes.value.examination || null,
     assessment: notes.value.assessment || null,
     notes: notes.value.plan || null,
@@ -726,7 +781,7 @@ function consultationPayload() {
   return {
     chief_complaint: notes.value.complaint || null,
     affected_eye: notes.value.eye || null,
-    visual_acuity: notes.value.vision || null,
+    visual_acuity: visualAcuityText.value || null,
     examination_findings: notes.value.examination || null,
     assessment: notes.value.assessment || null,
     notes: notes.value.plan || null,
@@ -750,6 +805,88 @@ async function saveSection(section, payload, successMessage) {
   } finally {
     saving.value = false
   }
+}
+
+function toBanglaDigits(value) {
+  return String(value ?? '').replace(/[0-9]/g, (digit) => '০১২৩৪৫৬৭৮৯'[Number(digit)])
+}
+
+function formatBanglaDose(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*(drops?|ফোঁটা|tablets?|tabs?|capsules?|caps?|ml|মি\.?লি\.?)(.*)$/i)
+  if (!match) return toBanglaDigits(text)
+  const unit = match[2].toLowerCase()
+  const banglaUnit = /^(drops?|ফোঁটা)$/i.test(unit) ? 'ফোঁটা'
+    : /^(tablets?|tabs?)$/i.test(unit) ? 'ট্যাবলেট'
+      : /^(capsules?|caps?)$/i.test(unit) ? 'ক্যাপসুল'
+        : 'মি.লি.'
+  return `${toBanglaDigits(match[1])} ${banglaUnit}${toBanglaDigits(match[3])}`
+}
+
+function formatBanglaFrequency(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ')
+  const wordCounts = { once: '১', twice: '২', thrice: '৩' }
+  if (wordCounts[normalized] && normalized !== 'once') return `দিনে ${wordCounts[normalized]} বার`
+  if (normalized === 'once daily' || normalized === 'once a day') return 'দিনে ১ বার'
+  if (normalized === 'twice daily' || normalized === 'twice a day') return 'দিনে ২ বার'
+  if (normalized === 'three times daily' || normalized === '3 times daily' || normalized === '3 time daily') return 'দিনে ৩ বার'
+  if (normalized === 'four times daily' || normalized === '4 times daily' || normalized === '4 time daily') return 'দিনে ৪ বার'
+  if (normalized === 'every hour' || normalized === 'hourly') return 'প্রতি ঘণ্টায় ১ বার'
+  if (normalized === 'at bedtime' || normalized === 'every night') return 'রাতে ঘুমানোর আগে ১ বার'
+  if (normalized === 'as needed' || normalized === 'when required' || normalized === 'prn' || normalized === 'sos') return 'প্রয়োজন অনুযায়ী'
+  const interval = normalized.match(/^(?:every|each)\s+(\d+)\s+hours?$/)
+  if (interval) return `প্রতি ${toBanglaDigits(interval[1])} ঘণ্টা পরপর`
+  const timesDaily = normalized.match(/^(\d+)\s*times?\s*(?:a\s+day|daily)$/)
+  if (timesDaily) return `দিনে ${toBanglaDigits(timesDaily[1])} বার`
+  return toBanglaDigits(text)
+}
+
+function formatBanglaDuration(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*(days?|weeks?|months?)$/i)
+  if (!match) return toBanglaDigits(text)
+  const unit = match[2].toLowerCase().replace(/s$/, '')
+  const banglaUnit = unit === 'day' ? 'দিন' : unit === 'week' ? 'সপ্তাহ' : 'মাস'
+  return `${toBanglaDigits(match[1])} ${banglaUnit}`
+}
+
+function formatBanglaRoute(value) {
+  const text = String(value || '').trim()
+  const route = text.toLowerCase()
+  if (route === 'ophthalmic') return 'চোখে'
+  if (route === 'oral') return 'মুখে'
+  if (route === 'topical') return 'ত্বকে'
+  return text
+}
+
+function formatBanglaEyeSide(value) {
+  const side = String(value || '').trim().toLowerCase()
+  if (side === 'both eyes') return 'দুই চোখে'
+  if (side === 'right eye') return 'ডান চোখে'
+  if (side === 'left eye') return 'বাম চোখে'
+  return String(value || '').trim()
+}
+
+function formatBanglaInstruction(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  const normalized = text.toLowerCase().replace(/[.!\s]+$/g, '').replace(/\s+/g, ' ')
+  const translations = {
+    'shake well before use': 'ব্যবহারের আগে ভালোভাবে ঝাঁকিয়ে নিন।',
+    'wash hands before use': 'ব্যবহারের আগে হাত ধুয়ে নিন।',
+    'do not touch the dropper tip': 'ড্রপারের মুখে স্পর্শ করবেন না।',
+    'do not touch the tip of the dropper': 'ড্রপারের মুখে স্পর্শ করবেন না।',
+    'close eyes for 1 minute after use': 'ব্যবহারের পর ১ মিনিট চোখ বন্ধ রাখুন।',
+    'wait 5 minutes between eye drops': 'একাধিক চোখের ড্রপ ব্যবহারের মাঝে ৫ মিনিট অপেক্ষা করুন।',
+    'keep refrigerated': 'ফ্রিজে রাখুন।',
+    'for external use only': 'শুধুমাত্র বাহ্যিক ব্যবহারের জন্য।',
+    'use at bedtime': 'রাতে ঘুমানোর আগে ব্যবহার করুন।',
+  }
+  return translations[normalized] || text
 }
 
 function formatAmount(value) {
@@ -821,6 +958,8 @@ function statusLabel(status) {
 .print-table th, .print-table td { padding: 6px 5px; border: 1px solid #dbe2ed; text-align: left; vertical-align: top; }
 .print-table th { color: #475569; background: #f8fafc; font-size: 8px; text-transform: uppercase; }
 .print-table td small { color: #64748b; font-size: 8px; }
+.print-instruction-row td { padding-top: 2px; border-top: 0; color: #334155; font-size: 8px; }
+.print-instruction-row strong { color: #475569; }
 .print-advice { margin-top: 8px; }
 .print-medicine-instruction { margin-top: 4px; font-size: 9px; }
 .print-document-footer { display: grid; grid-template-columns: 1fr 1fr; gap: 22px 30px; margin-top: 27px; }
@@ -858,6 +997,9 @@ function statusLabel(status) {
 .field textarea { min-height: 78px; resize: vertical; }
 .field input:focus, .field select:focus, .field textarea:focus { border-color: #9384ff; box-shadow: 0 0 0 3px #6d4aff16; }
 .field.full { grid-column: 1 / -1; }
+.clinical-vision-row { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: start; gap: 12px; }
+.visual-acuity-note { grid-column: 1 / -1; }
+
 .side-column { display: grid; gap: 14px; }
 .side-card { padding: 18px; }
 .side-title { display: flex; align-items: center; gap: 9px; color: var(--primary); }
@@ -957,6 +1099,7 @@ function statusLabel(status) {
 @media (max-width: 760px) { .patient-banner { flex-wrap: wrap; } .patient-banner-detail { padding-left: 10px; } .patient-serial { margin-left: 0; text-align: left; } .workspace-grid { grid-template-columns: 1fr; } .side-column { grid-template-columns: 1fr; } .workspace-footer { position: static; align-items: stretch; flex-direction: column; } .workspace-footer > div { justify-content: flex-end; } }
 @media (max-width: 760px) { .investigation-edit-row { grid-template-columns: 1fr 1fr; } .investigation-edit-row .field:first-child { grid-column: 1 / -1; } .investigation-edit-actions { grid-column: 1 / -1; justify-content: flex-end; } }
 @media (max-width: 560px) { .medicine-create-backdrop { align-items: start; padding: 12px; } .medicine-create-header, .medicine-create-form { padding-right: 17px; padding-left: 17px; } .medicine-create-fields { grid-template-columns: 1fr; } }
+@media (max-width: 560px) { .clinical-vision-row { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .doctor-consultation .page-head { align-items: flex-start; flex-direction: column; } .head-actions { width: 100%; justify-content: space-between; } .consultation-tabs { width: 100%; overflow-x: auto; } .visit-page-link { padding: 0 10px; font-size: 12px; } .workspace-card { padding: 16px; } .form-grid, .medicine-fields { grid-template-columns: 1fr; } .medicine-name, .medicine-instructions { grid-column: auto; } .investigation-preview { grid-template-columns: 1fr 1fr; } .investigation-preview .field:first-child { grid-column: 1 / -1; } .add-investigation { grid-column: 1 / -1; } .stage-chip { display: none; } .ordered-test { flex-wrap: wrap; } .ordered-test-payable { margin-left: auto; } .investigation-edit-row { grid-template-columns: 1fr; } .investigation-edit-row .field:first-child, .investigation-edit-actions { grid-column: auto; } }
 @media print {
   @page { size: A4; margin: 12mm; }
