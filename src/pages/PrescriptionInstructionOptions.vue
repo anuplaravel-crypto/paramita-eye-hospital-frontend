@@ -3,7 +3,7 @@
     <header class="page-head">
       <div>
         <h1 class="page-title">Prescription Instruction Options</h1>
-        <p class="page-sub">Manage the options used in prescription dose, frequency, duration, and instruction fields.</p>
+        <p class="page-sub">Manage the options used in prescription dose, frequency, duration, meal timing, and instruction fields.</p>
       </div>
       <button class="btn btn-primary" type="button" @click="openDialog()"><Plus :size="17" /> Add Option</button>
     </header>
@@ -49,7 +49,7 @@
         <table class="table option-table">
           <thead>
             <tr>
-              <th v-if="activeType === 'dose'">Dosage form</th>
+              <th v-if="activeType === 'dose' || activeType === 'meal_timing'">Dosage form</th>
               <th>{{ currentTab.label }}</th>
               <th>Status</th>
               <th class="actions-heading">Actions</th>
@@ -57,8 +57,8 @@
           </thead>
           <tbody>
             <tr v-for="option in filteredOptions" :key="option.id">
-              <td v-if="activeType === 'dose'"><strong>{{ option.dosage_form?.name || 'Unknown dosage form' }}</strong></td>
-              <td class="option-value">{{ option[activeType] }}</td>
+              <td v-if="activeType === 'dose' || activeType === 'meal_timing'"><strong>{{ option.dosage_form?.name || 'Unknown dosage form' }}</strong></td>
+              <td class="option-value">{{ optionValueLabel(option) }}</td>
               <td><span class="status-pill" :class="option.is_active ? 'status-active' : 'status-inactive'">{{ option.is_active ? 'Active' : 'Inactive' }}</span></td>
               <td>
                 <div class="option-actions">
@@ -82,7 +82,7 @@
           </header>
           <form @submit.prevent="saveOption">
             <div class="dialog-body">
-              <div v-if="activeType === 'dose'" class="field">
+              <div v-if="activeType === 'dose' || activeType === 'meal_timing'" class="field">
                 <label for="option-dosage-form">Dosage form <span class="required">*</span></label>
                 <select id="option-dosage-form" v-model="form.dosage_form_id" class="input" :class="{ 'input-invalid': fieldErrors.dosage_form_id }" :disabled="readOnly" required :aria-invalid="Boolean(fieldErrors.dosage_form_id)" :aria-describedby="fieldErrors.dosage_form_id ? 'option-dosage-form-error' : undefined">
                   <option value="">Select a dosage form</option>
@@ -93,7 +93,8 @@
 
               <div class="field">
                 <label :for="'option-' + activeType">{{ currentTab.label }} <span class="required">*</span></label>
-                <textarea v-if="activeType === 'instruction'" :id="'option-' + activeType" v-model.trim="form[activeType]" class="input instruction-input" :class="{ 'input-invalid': fieldErrors[activeType] }" rows="4" :readonly="readOnly" required :aria-invalid="Boolean(fieldErrors[activeType])" :aria-describedby="fieldErrors[activeType] ? 'option-value-error' : undefined"></textarea>
+                <input v-if="activeType === 'meal_timing'" :id="'option-' + activeType" v-model.trim="form.meal_timing" class="input" :class="{ 'input-invalid': fieldErrors[activeType] }" type="text" maxlength="30" placeholder="e.g. Before meal or After meal" :readonly="readOnly" required :aria-invalid="Boolean(fieldErrors[activeType])" :aria-describedby="fieldErrors[activeType] ? 'option-value-error' : undefined" />
+                <textarea v-else-if="activeType === 'instruction'" :id="'option-' + activeType" v-model.trim="form[activeType]" class="input instruction-input" :class="{ 'input-invalid': fieldErrors[activeType] }" rows="4" :readonly="readOnly" required :aria-invalid="Boolean(fieldErrors[activeType])" :aria-describedby="fieldErrors[activeType] ? 'option-value-error' : undefined"></textarea>
                 <input v-else :id="'option-' + activeType" v-model.trim="form[activeType]" class="input" :class="{ 'input-invalid': fieldErrors[activeType] }" type="text" maxlength="100" :readonly="readOnly" required :aria-invalid="Boolean(fieldErrors[activeType])" :aria-describedby="fieldErrors[activeType] ? 'option-value-error' : undefined" />
                 <small v-if="fieldErrors[activeType]" id="option-value-error" class="field-error" role="alert">{{ fieldErrors[activeType] }}</small>
               </div>
@@ -105,11 +106,11 @@
               </div>
               <label v-if="editingOption && !readOnly" class="active-option"><input v-model="form.is_active" type="checkbox" /> <span>Option is active</span></label>
               <div v-if="readOnly" class="field"><span class="field-label">Status</span><span class="status-pill" :class="form.is_active ? 'status-active' : 'status-inactive'">{{ form.is_active ? 'Active' : 'Inactive' }}</span></div>
-              <p v-if="activeType === 'dose' && !activeDosages.length" class="field-error" role="alert">No active dosage forms are available. Add or activate one in Dosages first.</p>
+              <p v-if="(activeType === 'dose' || activeType === 'meal_timing') && !activeDosages.length" class="field-error" role="alert">No active dosage forms are available. Add or activate one in Dosages first.</p>
             </div>
             <footer class="dialog-actions">
               <button class="btn btn-outline" type="button" :disabled="saving" @click="closeDialog">{{ readOnly ? 'Close' : 'Cancel' }}</button>
-              <button v-if="!readOnly" class="btn btn-primary" type="submit" :disabled="saving || (activeType === 'dose' && !activeDosages.length)">{{ saving ? 'Saving...' : editingOption ? 'Save Changes' : 'Create Option' }}</button>
+              <button v-if="!readOnly" class="btn btn-primary" type="submit" :disabled="saving || (['dose', 'meal_timing'].includes(activeType) && !activeDosages.length)">{{ saving ? 'Saving...' : editingOption ? 'Save Changes' : 'Create Option' }}</button>
             </footer>
           </form>
         </section>
@@ -129,6 +130,7 @@ const tabs = [
   { type: 'frequency', label: 'Frequency' },
   { type: 'duration', label: 'Duration' },
   { type: 'instruction', label: 'Instructions' },
+  { type: 'meal_timing', label: 'Meal timing' },
 ]
 const options = ref([])
 const dosages = ref([])
@@ -141,7 +143,7 @@ const dialogOpen = ref(false)
 const dialogMode = ref('create')
 const editingOption = ref(null)
 const fieldErrors = ref({})
-const form = reactive({ dosage_form_id: '', dose: '', frequency: '', duration: '', instruction: '', sort_order: 0, is_active: true })
+const form = reactive({ dosage_form_id: '', dose: '', frequency: '', duration: '', instruction: '', meal_timing: '', sort_order: 0, is_active: true })
 
 const currentTab = computed(() => tabs.find((tab) => tab.type === activeType.value) || tabs[0])
 const activeDosages = computed(() => dosages.value.filter((dosage) => dosage.is_active))
@@ -159,7 +161,7 @@ const filteredOptions = computed(() => {
   const query = search.value.trim().toLowerCase()
   return options.value
     .filter((option) => option.option_type === activeType.value)
-    .filter((option) => [option.dosage_form?.name, option[activeType.value]].some((value) => String(value || '').toLowerCase().includes(query)))
+    .filter((option) => [option.dosage_form?.name, optionValueLabel(option)].some((value) => String(value || '').toLowerCase().includes(query)))
 })
 const readOnly = computed(() => dialogMode.value === 'view')
 const dialogTitle = computed(() => readOnly.value ? 'View ' + currentTab.value.label + ' Option' : editingOption.value ? 'Edit ' + currentTab.value.label + ' Option' : 'Create ' + currentTab.value.label + ' Option')
@@ -170,6 +172,11 @@ function selectTab(type) {
   search.value = ''
   dialogOpen.value = false
   fieldErrors.value = {}
+}
+
+function optionValueLabel(option) {
+  if (option.option_type !== 'meal_timing') return option[activeType.value]
+  return option.meal_timing === 'before_meal' ? 'Before meal' : option.meal_timing === 'after_meal' ? 'After meal' : option.meal_timing
 }
 
 async function loadPageData() {
@@ -199,7 +206,7 @@ async function loadPageData() {
 function resetForm() {
   Object.assign(form, {
     dosage_form_id: activeDosages.value[0] ? String(activeDosages.value[0].id) : '',
-    dose: '', frequency: '', duration: '', instruction: '',
+    dose: '', frequency: '', duration: '', instruction: '', meal_timing: '',
     sort_order: typeCounts.value[activeType.value] || 0,
     is_active: true,
   })
@@ -238,11 +245,12 @@ async function saveOption() {
   try {
     const payload = {
       option_type: activeType.value,
-      dosage_form_id: activeType.value === 'dose' ? Number(form.dosage_form_id) : null,
+      dosage_form_id: ['dose', 'meal_timing'].includes(activeType.value) ? Number(form.dosage_form_id) : null,
       dose: activeType.value === 'dose' ? form.dose : null,
       frequency: activeType.value === 'frequency' ? form.frequency : null,
       duration: activeType.value === 'duration' ? form.duration : null,
       instruction: activeType.value === 'instruction' ? form.instruction : null,
+      meal_timing: activeType.value === 'meal_timing' ? form.meal_timing : null,
       sort_order: form.sort_order,
       is_active: form.is_active,
     }

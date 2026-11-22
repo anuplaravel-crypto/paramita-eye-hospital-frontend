@@ -99,6 +99,7 @@
           <article v-for="(row, index) in medicines" :key="row.key" class="medicine-row">
             <div class="medicine-row-head"><strong>Medicine {{ index + 1 }}</strong><button class="icon-button danger" type="button" aria-label="Remove medicine" @click="removeMedicine(row.key)"><Trash2 :size="16" /></button></div>
             <div class="medicine-fields">
+              <div class="medicine-primary-fields">
               <div class="field medicine-name">
                 <span>Medicine <b>*</b></span>
                 <div class="medicine-combobox">
@@ -136,12 +137,16 @@
                 </div>
               </div>
               <label class="field"><span>Strength</span><input v-model="row.strength" placeholder="e.g. 0.5%" /></label>
+              <label v-if="showEyeSide(row)" class="field"><span>Eye Side</span><select v-model="row.eye_side"><option value="">Select eye side</option><option>Both eyes</option><option>Right eye</option><option>Left eye</option></select></label>
               <label class="field"><span>Dose</span><select v-model="row.dose" :disabled="!selectedMedicine(row) || !doseOptionsFor(row).length"><option value="">{{ selectedMedicine(row) ? (doseOptionsFor(row).length ? 'Select dose' : 'No dose options configured') : 'Select a medicine first' }}</option><option v-if="row.dose && !hasDoseOption(row)" :value="row.dose">{{ row.dose }} (current)</option><option v-for="option in doseOptionsFor(row)" :key="option.id" :value="option.dose">{{ option.dose }}</option></select></label>
               <label class="field"><span>Frequency</span><select v-model="row.frequency" :disabled="!frequencyOptions.length"><option value="">{{ frequencyOptions.length ? 'Select frequency' : 'No frequency options configured' }}</option><option v-if="row.frequency && !frequencyOptions.some((option) => option.frequency === row.frequency)" :value="row.frequency">{{ row.frequency }} (current)</option><option v-for="option in frequencyOptions" :key="option.id" :value="option.frequency">{{ option.frequency }}</option></select></label>
               <label class="field"><span>Duration</span><select v-model="row.duration" :disabled="!durationOptions.length"><option value="">{{ durationOptions.length ? 'Select duration' : 'No duration options configured' }}</option><option v-if="row.duration && !durationOptions.some((option) => option.duration === row.duration)" :value="row.duration">{{ row.duration }} (current)</option><option v-for="option in durationOptions" :key="option.id" :value="option.duration">{{ option.duration }}</option></select></label>
+              <label v-if="showMealTiming(row)" class="field meal-timing-field"><span>Meal Time</span><select v-model="row.meal_timing" :disabled="!mealTimingOptionsFor(row).length"><option value="">{{ mealTimingOptionsFor(row).length ? 'Select meal timing' : 'No meal timing options configured' }}</option><option v-for="option in mealTimingOptionsFor(row)" :key="option.id" :value="option.meal_timing">{{ mealTimingOptionLabel(option.meal_timing) }}</option></select></label>
+              </div>
+              <div class="medicine-secondary-fields">
               <label class="field"><span>Route</span><input v-model="row.route" placeholder="e.g. Ophthalmic, oral" /></label>
-              <label class="field"><span>Eye side</span><select v-model="row.eye_side"><option value="">Not applicable</option><option>Both eyes</option><option>Right eye</option><option>Left eye</option></select></label>
-              <label class="field medicine-instructions"><span>Patient instructions (enter in Bangla for print)</span><input v-model="row.instructions" placeholder="Enter patient instructions in Bangla" /></label>
+              <label class="field medicine-instructions"><span>Instructions</span><input v-model="row.instructions" placeholder="Enter instructions" /></label>
+              </div>
             </div>
           </article>
         </div>
@@ -288,19 +293,19 @@
             <section class="print-section">
               <h3>Prescription <small>{{ prescriptionStage === 'follow_up' ? 'After report review' : 'Initial' }}</small></h3>
               <table class="print-table">
-                <thead><tr><th>#</th><th>Medicine</th><th>Strength</th><th>মাত্রা / চোখ</th><th>ব্যবহারের সময়</th><th>মেয়াদ</th></tr></thead>
+                <thead><tr><th>#</th><th>Medicine</th><th>Strength</th><th>মাত্রা / চোখ</th><th>ব্যবহারের সময়</th><th>মেয়াদ</th><th>খাবারের সময়</th></tr></thead>
                 <tbody>
                   <template v-for="(row, index) in medicines" :key="row.key">
                     <tr>
                       <td>{{ index + 1 }}</td><td>{{ medicineName(row.medicine_id) || '—' }}</td><td>{{ row.strength || '—' }}</td>
                       <td>{{ formatBanglaDose(row.dose) || '—' }}<br /><small>{{ [formatBanglaRoute(row.route), formatBanglaEyeSide(row.eye_side)].filter(Boolean).join(' · ') || '—' }}</small></td>
-                      <td>{{ formatBanglaFrequency(row.frequency) || '—' }}</td><td>{{ formatBanglaDuration(row.duration) || '—' }}</td>
+                      <td>{{ formatBanglaFrequency(row.frequency) || '—' }}</td><td>{{ formatBanglaDuration(row.duration) || '—' }}</td><td>{{ formatBanglaMealTiming(row.meal_timing) || '—' }}</td>
                     </tr>
                     <tr v-if="row.instructions" class="print-instruction-row">
-                      <td colspan="6"><strong>নির্দেশনা:</strong> {{ formatBanglaInstruction(row.instructions) }}</td>
+                      <td colspan="7"><strong>নির্দেশনা:</strong> {{ formatBanglaInstruction(row.instructions) }}</td>
                     </tr>
                   </template>
-                  <tr v-if="!medicines.length"><td colspan="6">No medicines listed.</td></tr>
+                  <tr v-if="!medicines.length"><td colspan="7">No medicines listed.</td></tr>
                 </tbody>
               </table>
               <div class="print-detail print-advice"><span>Advice</span><p>{{ prescriptionAdvice || '—' }}</p></div>
@@ -379,6 +384,7 @@ const dosageOptions = ref([])
 const prescriptionInstructionOptions = ref([])
 const frequencyOptions = computed(() => prescriptionInstructionOptions.value.filter((option) => option.option_type === 'frequency'))
 const durationOptions = computed(() => prescriptionInstructionOptions.value.filter((option) => option.option_type === 'duration'))
+const mealTimingOptions = computed(() => prescriptionInstructionOptions.value.filter((option) => option.option_type === 'meal_timing'))
 const medicineCreateOpen = ref(false)
 const medicineCreateSaving = ref(false)
 const medicineCreateError = ref('')
@@ -465,7 +471,7 @@ async function startPrescription() {
 }
 
 function addMedicine() {
-  medicines.value.push({ id: null, key: `new-${Date.now()}-${Math.random()}`, medicine_id: '', medicineSearch: '', medicineSearchOpen: false, strength: '', dose: '', frequency: '', duration: '', route: '', eye_side: '', instructions: '' })
+  medicines.value.push({ id: null, key: `new-${Date.now()}-${Math.random()}`, medicine_id: '', medicineSearch: '', medicineSearchOpen: false, strength: '', dose: '', frequency: '', duration: '', meal_timing: '', route: '', eye_side: '', instructions: '' })
 }
 
 function removeMedicine(key) {
@@ -547,6 +553,37 @@ function doseOptionsFor(row) {
   const dosageFormId = selectedMedicine(row)?.dosage_form_id
   if (!dosageFormId) return []
   return prescriptionInstructionOptions.value.filter((option) => option.option_type === 'dose' && Number(option.dosage_form_id) === Number(dosageFormId))
+}
+
+function showMealTiming(row) {
+  const medicine = selectedMedicine(row)
+  const dosageFormId = medicine?.dosage_form_id
+  const dosageName = dosageOptions.value.find((dosage) => Number(dosage.id) === Number(dosageFormId))?.name?.trim().toLowerCase()
+  if (['tablet', 'capsule', 'syrup'].includes(dosageName)) return true
+  const route = String(medicine?.route || '').trim().toLowerCase()
+  return ['suspension', 'powder for suspension'].includes(dosageName) && route === 'oral'
+}
+
+function showEyeSide(row) {
+  const medicine = selectedMedicine(row)
+  const dosageFormId = medicine?.dosage_form_id
+  const dosageName = dosageOptions.value.find((dosage) => Number(dosage.id) === Number(dosageFormId))?.name?.trim().toLowerCase()
+  const route = String(medicine?.route || '').trim().toLowerCase()
+  if (['suspension', 'powder for suspension'].includes(dosageName) && route === 'oral') return false
+  return ['eye drops', 'eye drop', 'eye gel', 'eye ointment', 'suspension', 'powder for suspension'].includes(dosageName)
+}
+
+function mealTimingOptionsFor(row) {
+  const dosageFormId = selectedMedicine(row)?.dosage_form_id
+  if (!dosageFormId) return []
+  return mealTimingOptions.value.filter((option) => Number(option.dosage_form_id) === Number(dosageFormId) && mealTimingOptionLabel(option.meal_timing))
+}
+
+function mealTimingOptionLabel(value) {
+  const normalized = String(value || '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+  if (['before meal', 'before food', 'খাবার আগে', 'খাবারের আগে'].includes(normalized)) return 'খাবার আগে'
+  if (['after meal', 'after food', 'খাবার পরে', 'খাবারের পরে'].includes(normalized)) return 'খাবার পরে'
+  return ''
 }
 
 function hasDoseOption(row) {
@@ -653,6 +690,9 @@ function medicineChanged(row) {
   row.strength = medicine.strength || ''
   row.route = medicine.route || ''
   if (row.dose && !doseOptionsFor(row).some((option) => option.dose === row.dose)) row.dose = ''
+  if (!showMealTiming(row)) row.meal_timing = ''
+  else if (row.meal_timing && !mealTimingOptionsFor(row).some((option) => option.meal_timing === row.meal_timing)) row.meal_timing = ''
+  if (!showEyeSide(row)) row.eye_side = ''
 }
 
 function medicineName(id) {
@@ -732,6 +772,7 @@ function loadPrescriptionStage() {
     dose: item.dose || '',
     frequency: item.frequency || '',
     duration: item.duration || '',
+    meal_timing: item.meal_timing || '',
     route: item.route || '',
     eye_side: item.eye_side || '',
     instructions: item.instructions || '',
@@ -777,6 +818,7 @@ async function savePrescription() {
     dose: item.dose || null,
     frequency: item.frequency || null,
     duration: item.duration || null,
+    meal_timing: item.meal_timing || null,
     quantity: item.quantity || null,
     eye_side: item.eye_side || null,
     instructions: item.instructions || null,
@@ -910,6 +952,17 @@ function formatBanglaDuration(value) {
   const unit = match[2].toLowerCase().replace(/s$/, '')
   const banglaUnit = unit === 'day' ? 'দিন' : unit === 'week' ? 'সপ্তাহ' : 'মাস'
   return `${toBanglaDigits(match[1])} ${banglaUnit}`
+}
+
+function formatBanglaMealTiming(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  const label = mealTimingOptionLabel(text)
+  if (label) return label
+  const normalized = text.toLowerCase().replace(/[_-]+/g, ' ').replace(/\s+/g, ' ')
+  if (['with meal', 'with food', 'খাবারের সঙ্গে', 'খাবার সঙ্গে'].includes(normalized)) return 'খাবার সঙ্গে'
+  if (/[\u0980-\u09FF]/.test(text)) return toBanglaDigits(text)
+  return 'খাবারের সময় নির্দেশনা'
 }
 
 function formatBanglaRoute(value) {
@@ -1093,8 +1146,13 @@ function statusLabel(status) {
 .medicine-list { display: grid; gap: 12px; }
 .medicine-row { padding: 15px; border: 1px solid var(--border); border-radius: 13px; background: #fcfcff; }
 .medicine-row-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 13px; color: var(--text); font-size: 13px; }
-.medicine-fields { display: grid; grid-template-columns: 1.7fr 1fr 1fr 1.3fr 1fr 1.2fr; gap: 12px; }
-.medicine-name { grid-column: span 2; }
+.medicine-fields { display: grid; gap: 12px; }
+.medicine-primary-fields { display: grid; grid-template-columns: minmax(220px, 2.2fr) minmax(82px, .8fr) minmax(145px, 1.1fr) minmax(100px, .9fr) minmax(100px, .9fr) minmax(90px, .8fr) minmax(200px, 1.5fr); gap: 12px; }
+.medicine-primary-fields > .field { min-width: 0; }
+.medicine-primary-fields > .meal-timing-field { min-width: 200px; }
+.meal-timing-field select { padding-right: 26px; font-size: 12px; }
+.medicine-secondary-fields { display: grid; grid-template-columns: minmax(180px, .9fr) minmax(280px, 2fr); gap: 12px; }
+.medicine-name { min-width: 0; }
 .medicine-combobox { position: relative; }
 .medicine-combobox-control { position: relative; display: flex; align-items: center; }
 .medicine-combobox-control > svg { position: absolute; left: 12px; z-index: 1; color: var(--muted); pointer-events: none; }
@@ -1118,7 +1176,7 @@ function statusLabel(status) {
 .medicine-create-error { color: #b91c1c; font-size: 11px; }
 .medicine-create-error-summary { margin: 14px 0 0; padding: 10px 12px; border: 1px solid #fecaca; border-radius: 9px; color: #991b1b; background: #fff7f7; font-size: 12px; }
 .medicine-create-footer { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
-.medicine-instructions { grid-column: span 3; }
+.medicine-instructions { min-width: 0; }
 .icon-button { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: white; cursor: pointer; }
 .icon-button.danger { color: #dc2626; }
 .add-medicine { margin-top: 14px; }
@@ -1167,12 +1225,12 @@ function statusLabel(status) {
 .appointment-error { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 15px; border: 1px solid #fecaca; border-radius: 12px; color: #991b1b; background: #fff7f7; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-@media (max-width: 1080px) { .workspace-grid { grid-template-columns: minmax(0, 1fr) 275px; } .medicine-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } .medicine-name, .medicine-instructions { grid-column: span 2; } }
+@media (max-width: 1080px) { .workspace-grid { grid-template-columns: minmax(0, 1fr) 275px; } .medicine-primary-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); } .medicine-name { grid-column: span 2; } }
 @media (max-width: 760px) { .patient-banner { flex-wrap: wrap; } .patient-banner-detail { padding-left: 10px; } .patient-serial { margin-left: 0; text-align: left; } .workspace-grid { grid-template-columns: 1fr; } .side-column { grid-template-columns: 1fr; } .workspace-footer { position: static; align-items: stretch; flex-direction: column; } .workspace-footer > div { justify-content: flex-end; } }
 @media (max-width: 760px) { .investigation-edit-row { grid-template-columns: 1fr 1fr; } .investigation-edit-row .field:first-child { grid-column: 1 / -1; } .investigation-edit-actions { grid-column: 1 / -1; justify-content: flex-end; } }
 @media (max-width: 560px) { .medicine-create-backdrop { align-items: start; padding: 12px; } .medicine-create-header, .medicine-create-form { padding-right: 17px; padding-left: 17px; } .medicine-create-fields { grid-template-columns: 1fr; } }
 @media (max-width: 560px) { .clinical-vision-row { grid-template-columns: 1fr; } }
-@media (max-width: 560px) { .doctor-consultation .page-head { align-items: flex-start; flex-direction: column; } .head-actions { width: 100%; justify-content: space-between; } .consultation-tabs { width: 100%; overflow-x: auto; } .visit-page-link { padding: 0 10px; font-size: 12px; } .workspace-card { padding: 16px; } .form-grid, .medicine-fields { grid-template-columns: 1fr; } .medicine-name, .medicine-instructions { grid-column: auto; } .investigation-preview { grid-template-columns: 1fr 1fr; } .investigation-preview .field:first-child { grid-column: 1 / -1; } .add-investigation { grid-column: 1 / -1; } .stage-chip { display: none; } .ordered-test { flex-wrap: wrap; } .ordered-test-payable { margin-left: auto; } .investigation-edit-row { grid-template-columns: 1fr; } .investigation-edit-row .field:first-child, .investigation-edit-actions { grid-column: auto; } }
+@media (max-width: 560px) { .doctor-consultation .page-head { align-items: flex-start; flex-direction: column; } .head-actions { width: 100%; justify-content: space-between; } .consultation-tabs { width: 100%; overflow-x: auto; } .visit-page-link { padding: 0 10px; font-size: 12px; } .workspace-card { padding: 16px; } .form-grid, .medicine-primary-fields, .medicine-secondary-fields { grid-template-columns: 1fr; } .medicine-name, .medicine-instructions { grid-column: auto; } .investigation-preview { grid-template-columns: 1fr 1fr; } .investigation-preview .field:first-child { grid-column: 1 / -1; } .add-investigation { grid-column: 1 / -1; } .stage-chip { display: none; } .ordered-test { flex-wrap: wrap; } .ordered-test-payable { margin-left: auto; } .investigation-edit-row { grid-template-columns: 1fr; } .investigation-edit-row .field:first-child, .investigation-edit-actions { grid-column: auto; } }
 @media print {
   @page { size: A4; margin: 12mm; }
   :global(body) { background: #fff !important; }
