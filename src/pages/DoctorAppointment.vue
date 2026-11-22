@@ -136,9 +136,9 @@
                 </div>
               </div>
               <label class="field"><span>Strength</span><input v-model="row.strength" placeholder="e.g. 0.5%" /></label>
-              <label class="field"><span>Dose</span><input v-model="row.dose" placeholder="e.g. 1 drop" /></label>
-              <label class="field"><span>Frequency</span><input v-model="row.frequency" placeholder="e.g. 4 times daily" /></label>
-              <label class="field"><span>Duration</span><input v-model="row.duration" placeholder="e.g. 7 days" /></label>
+              <label class="field"><span>Dose</span><select v-model="row.dose" :disabled="!selectedMedicine(row) || !doseOptionsFor(row).length"><option value="">{{ selectedMedicine(row) ? (doseOptionsFor(row).length ? 'Select dose' : 'No dose options configured') : 'Select a medicine first' }}</option><option v-if="row.dose && !hasDoseOption(row)" :value="row.dose">{{ row.dose }} (current)</option><option v-for="option in doseOptionsFor(row)" :key="option.id" :value="option.dose">{{ option.dose }}</option></select></label>
+              <label class="field"><span>Frequency</span><select v-model="row.frequency" :disabled="!frequencyOptions.length"><option value="">{{ frequencyOptions.length ? 'Select frequency' : 'No frequency options configured' }}</option><option v-if="row.frequency && !frequencyOptions.some((option) => option.frequency === row.frequency)" :value="row.frequency">{{ row.frequency }} (current)</option><option v-for="option in frequencyOptions" :key="option.id" :value="option.frequency">{{ option.frequency }}</option></select></label>
+              <label class="field"><span>Duration</span><select v-model="row.duration" :disabled="!durationOptions.length"><option value="">{{ durationOptions.length ? 'Select duration' : 'No duration options configured' }}</option><option v-if="row.duration && !durationOptions.some((option) => option.duration === row.duration)" :value="row.duration">{{ row.duration }} (current)</option><option v-for="option in durationOptions" :key="option.id" :value="option.duration">{{ option.duration }}</option></select></label>
               <label class="field"><span>Route</span><input v-model="row.route" placeholder="e.g. Ophthalmic, oral" /></label>
               <label class="field"><span>Eye side</span><select v-model="row.eye_side"><option value="">Not applicable</option><option>Both eyes</option><option>Right eye</option><option>Left eye</option></select></label>
               <label class="field medicine-instructions"><span>Patient instructions (enter in Bangla for print)</span><input v-model="row.instructions" placeholder="Enter patient instructions in Bangla" /></label>
@@ -229,7 +229,7 @@
             <label class="field">
               <span>Dosage form <b>*</b></span>
               <select id="new-medicine-dosage-form" v-model="newMedicineForm.dosage_form" required :aria-invalid="medicineCreateErrors.dosage_form ? 'true' : 'false'" :aria-describedby="medicineCreateErrors.dosage_form ? 'new-medicine-dosage-form-error' : undefined">
-                <option value="">Select dosage form</option><option>Eye drops</option><option>Eye ointment</option><option>Eye gel</option><option>Tablet</option><option>Capsule</option><option>Syrup</option><option>Suspension</option><option>Other</option>
+                <option value="">Select dosage form</option><option v-for="dosage in dosageOptions" :key="dosage.id" :value="dosage.name">{{ dosage.name }}</option>
               </select>
               <small v-if="medicineCreateErrors.dosage_form" id="new-medicine-dosage-form-error" class="medicine-create-error">{{ medicineCreateErrors.dosage_form }}</small>
             </label>
@@ -375,6 +375,10 @@ const visualAcuityText = computed(() => {
 const prescriptionAdvice = ref('')
 const medicines = ref([])
 const medicineOptions = ref([])
+const dosageOptions = ref([])
+const prescriptionInstructionOptions = ref([])
+const frequencyOptions = computed(() => prescriptionInstructionOptions.value.filter((option) => option.option_type === 'frequency'))
+const durationOptions = computed(() => prescriptionInstructionOptions.value.filter((option) => option.option_type === 'duration'))
 const medicineCreateOpen = ref(false)
 const medicineCreateSaving = ref(false)
 const medicineCreateError = ref('')
@@ -432,9 +436,13 @@ async function loadClinicalCatalogs() {
   try {
     const { data: catalogResponse } = await api.get('/doctor/clinical-catalogs')
     medicineOptions.value = catalogResponse.data?.medicines || []
+    dosageOptions.value = catalogResponse.data?.dosages || []
+    prescriptionInstructionOptions.value = catalogResponse.data?.prescription_instruction_options || []
     investigationOptions.value = catalogResponse.data?.investigations || []
   } catch (error) {
     medicineOptions.value = []
+    dosageOptions.value = []
+    prescriptionInstructionOptions.value = []
     investigationOptions.value = []
     catalogError.value = error.response?.data?.message || 'Medicine and investigation catalogs could not be loaded.'
   } finally {
@@ -533,6 +541,16 @@ function applyInvestigationEdit(item) {
 
 function selectedMedicine(row) {
   return medicineOptions.value.find((item) => Number(item.id) === Number(row.medicine_id)) || null
+}
+
+function doseOptionsFor(row) {
+  const dosageFormId = selectedMedicine(row)?.dosage_form_id
+  if (!dosageFormId) return []
+  return prescriptionInstructionOptions.value.filter((option) => option.option_type === 'dose' && Number(option.dosage_form_id) === Number(dosageFormId))
+}
+
+function hasDoseOption(row) {
+  return doseOptionsFor(row).some((option) => option.dose === row.dose)
 }
 
 function openMedicineSearch(row) {
@@ -634,6 +652,7 @@ function medicineChanged(row) {
   if (!medicine) return
   row.strength = medicine.strength || ''
   row.route = medicine.route || ''
+  if (row.dose && !doseOptionsFor(row).some((option) => option.dose === row.dose)) row.dose = ''
 }
 
 function medicineName(id) {
@@ -814,34 +833,73 @@ function toBanglaDigits(value) {
 function formatBanglaDose(value) {
   const text = String(value || '').trim()
   if (!text) return ''
-  const match = text.match(/^(\d+(?:\.\d+)?)\s*(drops?|ফোঁটা|tablets?|tabs?|capsules?|caps?|ml|মি\.?লি\.?)(.*)$/i)
-  if (!match) return toBanglaDigits(text)
+  const match = text.match(/^(\d+(?:\.\d+)?)\s*(drops?|ফোঁটা|tablets?|tabs?|capsules?|caps?|ml|millilit(?:er|re)s?|mg|milligrams?|g|grams?|ribbons?|applications?|puffs?|times?)(.*)$/i)
+  if (!match) {
+    const normalized = text.toLowerCase().replace(/\s+/g, ' ')
+    const phrases = {
+      'one drop': '১ ফোঁটা',
+      'two drops': '২ ফোঁটা',
+      'one tablet': '১ ট্যাবলেট',
+      'one capsule': '১ ক্যাপসুল',
+      'small ribbon': 'অল্প পরিমাণ মলম',
+      'thin ribbon': 'পাতলা ফিতা পরিমাণ',
+    }
+    return phrases[normalized] || (/[\u0980-\u09FF]/.test(text) ? toBanglaDigits(text) : 'বাংলায় মাত্রা লিখুন')
+  }
   const unit = match[2].toLowerCase()
   const banglaUnit = /^(drops?|ফোঁটা)$/i.test(unit) ? 'ফোঁটা'
     : /^(tablets?|tabs?)$/i.test(unit) ? 'ট্যাবলেট'
       : /^(capsules?|caps?)$/i.test(unit) ? 'ক্যাপসুল'
-        : 'মি.লি.'
-  return `${toBanglaDigits(match[1])} ${banglaUnit}${toBanglaDigits(match[3])}`
+        : /^(ml|millilit(?:er|re)s?)$/i.test(unit) ? 'মি.লি.'
+          : /^(mg|milligrams?)$/i.test(unit) ? 'মি.গ্রা.'
+            : /^(g|grams?)$/i.test(unit) ? 'গ্রাম'
+              : /^(ribbons?)$/i.test(unit) ? 'পাতলা ফিতা'
+                : /^(applications?)$/i.test(unit) ? 'বার প্রয়োগ'
+                  : /^(puffs?)$/i.test(unit) ? 'পাফ'
+                    : 'বার'
+  const suffix = match[3].trim().toLowerCase()
+  const banglaSuffix = suffix === 'in both eyes' || suffix === 'both eyes' ? ' দুই চোখে'
+    : suffix === 'in affected eye' || suffix === 'in affected eyes' ? ' আক্রান্ত চোখে'
+      : suffix === 'in each eye' ? ' প্রতি চোখে'
+        : suffix && /[\u0980-\u09FF]/.test(match[3]) ? ` ${match[3].trim()}`
+          : ''
+  return `${toBanglaDigits(match[1])} ${banglaUnit}${banglaSuffix}`
 }
 
 function formatBanglaFrequency(value) {
   const text = String(value || '').trim()
   if (!text) return ''
-  const normalized = text.toLowerCase().replace(/\s+/g, ' ')
+  const normalized = text.toLowerCase().replace(/\s+/g, ' ').replace(/tim+es?/g, 'times')
   const wordCounts = { once: '১', twice: '২', thrice: '৩' }
   if (wordCounts[normalized] && normalized !== 'once') return `দিনে ${wordCounts[normalized]} বার`
   if (normalized === 'once daily' || normalized === 'once a day') return 'দিনে ১ বার'
   if (normalized === 'twice daily' || normalized === 'twice a day') return 'দিনে ২ বার'
-  if (normalized === 'three times daily' || normalized === '3 times daily' || normalized === '3 time daily') return 'দিনে ৩ বার'
-  if (normalized === 'four times daily' || normalized === '4 times daily' || normalized === '4 time daily') return 'দিনে ৪ বার'
+  if (/^(three|3) times? (daily|a day)$/.test(normalized)) return 'দিনে ৩ বার'
+  if (/^(four|4) times? (daily|a day)$/.test(normalized)) return 'দিনে ৪ বার'
+  if (/^(five|5) times? (daily|a day)$/.test(normalized)) return 'দিনে ৫ বার'
+  if (/^(six|6) times? (daily|a day)$/.test(normalized)) return 'দিনে ৬ বার'
+  if (/^(one|1) times? (daily|a day)$/.test(normalized)) return 'দিনে ১ বার'
+  if (/^(two|2) times? (daily|a day)$/.test(normalized)) return 'দিনে ২ বার'
   if (normalized === 'every hour' || normalized === 'hourly') return 'প্রতি ঘণ্টায় ১ বার'
   if (normalized === 'at bedtime' || normalized === 'every night') return 'রাতে ঘুমানোর আগে ১ বার'
   if (normalized === 'as needed' || normalized === 'when required' || normalized === 'prn' || normalized === 'sos') return 'প্রয়োজন অনুযায়ী'
+  if (['od', 'qd', 'once daily'].includes(normalized)) return 'দিনে ১ বার'
+  if (['bd', 'bid'].includes(normalized)) return 'দিনে ২ বার'
+  if (['tds', 'tid'].includes(normalized)) return 'দিনে ৩ বার'
+  if (['qid'].includes(normalized)) return 'দিনে ৪ বার'
+  if (['hs'].includes(normalized)) return 'রাতে ঘুমানোর আগে ১ বার'
+  if (['q2h', 'q4h', 'q6h', 'q8h', 'q12h'].includes(normalized)) {
+    const hours = normalized.match(/\d+/)?.[0]
+    return `প্রতি ${toBanglaDigits(hours)} ঘণ্টা পরপর`
+  }
   const interval = normalized.match(/^(?:every|each)\s+(\d+)\s+hours?$/)
   if (interval) return `প্রতি ${toBanglaDigits(interval[1])} ঘণ্টা পরপর`
   const timesDaily = normalized.match(/^(\d+)\s*times?\s*(?:a\s+day|daily)$/)
   if (timesDaily) return `দিনে ${toBanglaDigits(timesDaily[1])} বার`
-  return toBanglaDigits(text)
+  const shorthand = normalized.match(/^(\d+)\s*[x×]\s*(?:daily|a day)$/)
+  if (shorthand) return `দিনে ${toBanglaDigits(shorthand[1])} বার`
+  if (/[\u0980-\u09FF]/.test(text)) return toBanglaDigits(text)
+  return 'বাংলায় ব্যবহারের সময় লিখুন'
 }
 
 function formatBanglaDuration(value) {
@@ -885,8 +943,22 @@ function formatBanglaInstruction(value) {
     'keep refrigerated': 'ফ্রিজে রাখুন।',
     'for external use only': 'শুধুমাত্র বাহ্যিক ব্যবহারের জন্য।',
     'use at bedtime': 'রাতে ঘুমানোর আগে ব্যবহার করুন।',
+    'apply at bedtime': 'রাতে ঘুমানোর আগে প্রয়োগ করুন।',
+    'instill one drop': '১ ফোঁটা দিন।',
+    'instill 1 drop': '১ ফোঁটা দিন।',
+    'instill one drop in affected eye': 'আক্রান্ত চোখে ১ ফোঁটা দিন।',
+    'instill one drop in both eyes': 'দুই চোখে ১ ফোঁটা দিন।',
+    'apply a small ribbon': 'অল্প পরিমাণ মলম প্রয়োগ করুন।',
+    'apply a thin ribbon': 'পাতলা ফিতা পরিমাণ মলম প্রয়োগ করুন।',
+    'close the eye gently after use': 'ব্যবহারের পর চোখ আলতো করে বন্ধ রাখুন।',
+    'wait 5 minutes between medicines': 'একাধিক ওষুধ ব্যবহারের মাঝে ৫ মিনিট অপেক্ষা করুন।',
+    'wait 10 minutes between medicines': 'একাধিক ওষুধ ব্যবহারের মাঝে ১০ মিনিট অপেক্ষা করুন।',
+    'remove contact lenses before use': 'ব্যবহারের আগে কন্টাক্ট লেন্স খুলে ফেলুন।',
+    'do not drive after use': 'ব্যবহারের পর গাড়ি চালাবেন না।',
   }
-  return translations[normalized] || text
+  if (translations[normalized]) return translations[normalized]
+  if (/[\u0980-\u09FF]/.test(text)) return text
+  return 'নির্দেশনাটি বাংলায় লিখুন।'
 }
 
 function formatAmount(value) {

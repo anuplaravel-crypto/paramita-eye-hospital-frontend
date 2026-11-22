@@ -66,6 +66,7 @@ import { useAuthStore } from '../../stores/auth'
 import {
   Eye, LayoutDashboard, CalendarDays, Stethoscope, UserRound, UserPlus,
   Settings, FileText, Shield, BadgeDollarSign, HandCoins,
+  Pill,
 } from '@lucide/vue'
 
 defineProps({
@@ -98,6 +99,8 @@ const manageMenu = computed(() => auth.role !== 'admin' ? [] : [
   { to: '/admin/staff', label: 'Staff', icon: UserRound },
   { to: '/admin/users', label: 'Users', icon: UserPlus },
   { to: '/admin/investigations', label: 'Investigations', icon: FileText },
+  { to: '/admin/dosages', label: 'Dosages', icon: Pill },
+  { to: '/admin/prescription-instruction-options', label: 'Prescription Options', icon: FileText },
   { to: '/admin/medicines', label: 'Medicines', icon: FileText },
   { to: '/admin/investigation-receipts', label: 'Investigation Receipts', icon: FileText },
   { to: '/admin/technician-commission-rates', label: 'Technician Commission Rates', icon: BadgeDollarSign },

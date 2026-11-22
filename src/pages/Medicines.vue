@@ -144,8 +144,13 @@
                 </div>
                 <div class="field">
                   <label for="medicine-form">Dosage form <span class="required">*</span></label>
-                  <input id="medicine-form" v-model.trim="form.dosage_form" class="input" :class="{ 'input-invalid': fieldErrors.dosage_form }" type="text" maxlength="40" placeholder="Eye drops, tablet, capsule, ointment..." :readonly="readOnly" required :aria-invalid="Boolean(fieldErrors.dosage_form)" :aria-describedby="fieldErrors.dosage_form ? 'medicine-form-error' : undefined" />
+                  <select id="medicine-form" v-model="form.dosage_form" class="input" :class="{ 'input-invalid': fieldErrors.dosage_form }" :disabled="readOnly || dosageLoading" required :aria-invalid="Boolean(fieldErrors.dosage_form)" :aria-describedby="fieldErrors.dosage_form ? 'medicine-form-error' : undefined">
+                    <option value="">{{ dosageLoading ? 'Loading dosage forms...' : 'Select dosage form' }}</option>
+                    <option v-if="form.dosage_form && !dosageOptions.some((dosage) => dosage.name === form.dosage_form)" :value="form.dosage_form">{{ form.dosage_form }} (existing)</option>
+                    <option v-for="dosage in dosageOptions" :key="dosage.id" :value="dosage.name">{{ dosage.name }}</option>
+                  </select>
                   <small v-if="fieldErrors.dosage_form" id="medicine-form-error" class="field-error" role="alert">{{ fieldErrors.dosage_form }}</small>
+                  <small v-else-if="!dosageLoading && !dosageOptions.length" class="field-error">No active dosage forms. Add one from the Dosages menu.</small>
                 </div>
                 <div class="field">
                   <label for="medicine-category">Category</label>
@@ -206,6 +211,8 @@ import { Ban, Check, Eye, Pill, Pencil, Plus, Search, X } from '@lucide/vue'
 import api from '../api/axios'
 
 const medicines = ref([])
+const dosageCatalog = ref([])
+const dosageLoading = ref(true)
 const loading = ref(true)
 const saving = ref(false)
 const busyId = ref(null)
@@ -223,6 +230,7 @@ const dialogMode = ref('create')
 const editingMedicine = ref(null)
 const fieldErrors = ref({})
 const form = reactive({ name: '', generic_name: '', brand_name: '', strength: '', dosage_form: '', category: '', route: '', notes: '', is_active: true })
+const dosageOptions = computed(() => dosageCatalog.value.filter((dosage) => dosage.is_active))
 
 const dosageForms = computed(() => [...new Set(medicines.value.map((medicine) => String(medicine.dosage_form || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)))
 const categories = computed(() => [...new Set(medicines.value.map((medicine) => String(medicine.category || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b)))
@@ -288,6 +296,19 @@ async function loadMedicines() {
           : 'The API did not respond. Check that Laravel is running, then select Try again.'
   } finally {
     loading.value = false
+  }
+}
+
+async function loadDosages() {
+  dosageLoading.value = true
+  try {
+    const response = await api.get('/admin/dosages')
+    dosageCatalog.value = response.data.data || []
+  } catch (error) {
+    dosageCatalog.value = []
+    toast.error(error.response?.data?.message || 'Dosage forms could not be loaded.')
+  } finally {
+    dosageLoading.value = false
   }
 }
 
@@ -389,7 +410,10 @@ async function confirmMedicineStatus() {
   }
 }
 
-onMounted(loadMedicines)
+onMounted(() => {
+  loadMedicines()
+  loadDosages()
+})
 </script>
 
 <style scoped>
