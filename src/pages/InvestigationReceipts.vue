@@ -547,16 +547,20 @@
           </header>
 
           <article class="money-receipt-paper">
-            <header class="money-paper-header">
-              <div class="money-hospital-mark"><Eye :size="29" /></div>
+            <header class="money-paper-header" :style="{ '--money-header-accent': moneyHeader.accent_color || '#287048' }">
+              <div class="money-hospital-mark">
+                <img v-if="moneyHeader.logo_path" :src="moneyHeader.logo_path" alt="Hospital logo" />
+                <Eye v-else :size="29" />
+              </div>
               <div class="money-hospital-name">
-                <h1 id="money-receipt-title">PARAMITA EYE HOSPITAL (PVT.)</h1>
-                <p>Govt. Registered No: 406</p>
-                <strong>325, Charpara, Mymensingh.</strong>
+                <h1 id="money-receipt-title">{{ moneyHeader.center_title_en || 'PARAMITA EYE HOSPITAL (PVT.)' }}</h1>
+                <strong>{{ moneyHeader.center_subtitle_bn || 'GOVT. RECOGNISED' }}</strong>
+                <p v-if="moneyHeader.registration_no">{{ moneyHeader.registration_no }}</p>
+                <p>{{ moneyHeader.address_bn || 'CHARPARA, MYMENSINGH.' }}</p>
               </div>
               <div class="money-office-contact">
-                <span>Serial: 01301-206481</span>
-                <span>Office: 01956-534302</span>
+                <span>Contact:</span>
+                <strong>{{ moneyHeader.contact_phone || '01301-206481' }}</strong>
               </div>
             </header>
 
@@ -654,6 +658,7 @@ const selectedPendingByOrder = ref({})
 const pendingReceiptOrderId = ref(null)
 const moneyReceiptOpen = ref(false)
 const selectedMoneyReceipt = ref(null)
+const moneyHeader = ref({})
 const dialogMode = ref('create')
 const editingReceipt = ref(null)
 const fieldErrors = ref({})
@@ -893,13 +898,15 @@ async function loadData() {
   loading.value = true
   pageError.value = ''
   try {
-    const [receiptResponse, investigationResponse, userResponse] = await Promise.all([
+    const [receiptResponse, investigationResponse, userResponse, headerResponse] = await Promise.all([
       api.get('/admin/investigation-receipts'),
       api.get('/admin/investigations'),
       api.get('/admin/users'),
+      api.get('/admin/print-header-settings').catch(() => ({ data: { data: [] } })),
     ])
     receipts.value = receiptResponse.data.data
     investigations.value = investigationResponse.data.data
+    moneyHeader.value = (headerResponse.data.data || []).find((setting) => setting.document_type === 'investigation' && setting.is_active) || {}
     const activeUsers = userResponse.data.data.filter((user) => user.is_active)
     doctors.value = userResponse.data.data.filter((user) => user.role?.name?.toLowerCase() === 'doctor')
     technicians.value = activeUsers.filter((user) => ['technishian', 'technician'].includes(user.role?.name?.toLowerCase()))
@@ -1508,12 +1515,15 @@ onMounted(loadData)
 .money-modal-actions { display: flex; align-items: center; gap: 9px; }
 .money-modal-actions .btn { display: inline-flex; align-items: center; gap: 7px; }
 .money-receipt-paper { width: 100%; max-width: 820px; align-self: center; overflow: auto; padding: 28px 34px 24px; color: #1f2937; background: #fff; }
-.money-paper-header { display: grid; grid-template-columns: 54px minmax(0, 1fr) auto; align-items: center; gap: 13px; padding-bottom: 16px; border-bottom: 3px solid #b9382e; }
-.money-hospital-mark { display: grid; width: 52px; height: 52px; place-items: center; border: 2px solid #bf3e35; border-radius: 50%; color: #a62e28; }
-.money-hospital-name h1 { color: #b9382e; font-size: clamp(16px, 2.2vw, 22px); font-weight: 800; line-height: 1.15; }
-.money-hospital-name p { margin-top: 4px; color: #46515e; font-size: 11px; }
-.money-hospital-name strong { display: inline-block; margin-top: 5px; padding: 4px 8px; color: #fff; background: #283747; font-size: 12px; }
-.money-office-contact { display: grid; gap: 5px; padding: 9px 11px; border-radius: 7px; color: #fff; background: #b9382e; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.money-paper-header { display: grid; grid-template-columns: 52px minmax(0, 1fr) 112px; align-items: center; gap: 12px; padding: 4px 0 10px; border-bottom: 2px solid var(--money-header-accent); color: var(--money-header-accent); }
+.money-hospital-mark { display: grid; width: 48px; height: 48px; place-items: center; border: 2px solid var(--money-header-accent); border-radius: 50%; color: var(--money-header-accent); }
+.money-hospital-mark img { width: 100%; height: 100%; padding: 5px; border-radius: 50%; object-fit: contain; }
+.money-hospital-name { min-width: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.3; text-align: center; }
+.money-hospital-name h1 { margin: 0 0 3px; color: var(--money-header-accent); font-size: 20px; font-weight: 800; line-height: 1.3; }
+.money-hospital-name p { margin-top: 2px; color: #365d47; font-size: 10px; }
+.money-hospital-name strong { padding: 2px 12px; color: #fff; background: #448260; font-size: 11px; letter-spacing: .2px; }
+.money-office-contact { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px; background: #eef4ef; color: #365d47; font-size: 10px; line-height: 1.3; text-align: center; }
+.money-office-contact strong { color: var(--money-header-accent); font-size: 14px; }
 .money-paper-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 17px 0 13px; }
 .money-paper-title > strong { padding: 6px 16px; border-radius: 999px; color: #fff; background: #bd3b31; font-family: Georgia, serif; font-size: 17px; font-style: italic; }
 .money-paper-title > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 10px 18px; color: #384454; font-size: 11px; }
@@ -1543,10 +1553,10 @@ onMounted(loadData)
   .money-receipt-modal { max-height: calc(100vh - 16px); }
   .money-modal-topbar { padding: 12px; }
   .money-receipt-paper { padding: 20px 14px; }
-  .money-paper-header { grid-template-columns: 42px minmax(0, 1fr); gap: 9px; }
+  .money-paper-header { grid-template-columns: 42px minmax(0, 1fr) 95px; gap: 9px; }
   .money-hospital-mark { width: 40px; height: 40px; }
   .money-hospital-mark svg { width: 23px; }
-  .money-office-contact { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; }
+  .money-office-contact { grid-column: auto; }
   .money-paper-title { align-items: flex-start; flex-direction: column; }
   .money-paper-title > div { justify-content: flex-start; }
   .money-patient-details { grid-template-columns: 1fr; }
