@@ -101,6 +101,7 @@ const manageMenu = computed(() => auth.role !== 'admin' ? [] : [
   { to: '/admin/investigations', label: 'Investigations', icon: FileText },
   { to: '/admin/dosages', label: 'Dosages', icon: Pill },
   { to: '/admin/prescription-instruction-options', label: 'Prescription Options', icon: FileText },
+  { to: '/admin/print-header-settings', label: 'Print Header Settings', icon: FileText },
   { to: '/admin/medicines', label: 'Medicines', icon: FileText },
   { to: '/admin/investigation-receipts', label: 'Investigation Receipts', icon: FileText },
   { to: '/admin/technician-commission-rates', label: 'Technician Commission Rates', icon: BadgeDollarSign },

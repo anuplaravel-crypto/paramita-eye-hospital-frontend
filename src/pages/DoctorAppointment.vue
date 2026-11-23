@@ -209,7 +209,7 @@
 
       <footer class="workspace-footer">
         <span><span class="draft-dot" :class="{ saved: savedAt }"></span>{{ savedAt ? `Last saved ${savedAt} · save again after edits` : 'Changes are not saved automatically · click Save to persist' }}</span>
-        <div><button class="btn btn-outline" type="button" @click="printPreviewOpen = true"><Printer :size="16" /> {{ isInvestigationPage ? 'Print order slip' : 'Print consultation & prescription' }}</button><button class="btn btn-primary" type="button" :disabled="saving" @click="saveCurrentSection"><LoaderCircle v-if="saving" :size="16" class="spin" /><Save v-else :size="16" /> {{ saving ? 'Saving…' : 'Save' }}</button></div>
+        <div><button class="btn btn-outline" type="button" @click="openPrintPreview"><Printer :size="16" /> {{ isInvestigationPage ? 'Print order slip' : 'Print consultation & prescription' }}</button><button class="btn btn-primary" type="button" :disabled="saving" @click="saveCurrentSection"><LoaderCircle v-if="saving" :size="16" class="spin" /><Save v-else :size="16" /> {{ saving ? 'Saving…' : 'Save' }}</button></div>
       </footer>
     </template>
   </div>
@@ -251,7 +251,7 @@
     </div>
     <div v-if="printPreviewOpen" class="print-preview-root">
       <div class="print-preview-backdrop" @click.self="printPreviewOpen = false">
-        <section class="print-preview-sheet" role="dialog" aria-modal="true" aria-labelledby="print-preview-title">
+        <section class="print-preview-sheet" role="dialog" aria-modal="true" :aria-label="isInvestigationPage ? 'Investigation print preview' : 'Consultation and prescription print preview'">
           <div class="print-preview-actions">
             <span>Print preview · Sample only</span>
             <div>
@@ -261,20 +261,59 @@
           </div>
 
           <article class="print-document" :class="{ 'investigation-print-document': isInvestigationPage }">
-            <header class="print-document-header">
-              <div class="print-brand-mark"><Eye :size="24" /></div>
-              <div><h1>PARAMITA EYE HOSPITAL</h1><p>{{ isInvestigationPage ? 'Investigation Request / Payment Slip' : 'Consultation & Prescription' }}</p></div>
-              <div class="print-sample-stamp">PREVIEW COPY</div>
+            <header v-if="!isInvestigationPage" class="prescription-letterhead" :style="{ '--header-accent': printHeaderSetting?.accent_color || '#7c8795' }">
+              <div class="letterhead-doctor-bn">
+                <h1 v-if="headerText('left_title_bn', 'ডাঃ হরিশংকর দাশ')">{{ headerText('left_title_bn', 'ডাঃ হরিশংকর দাশ') }}</h1>
+                <strong v-if="headerText('left_subtitle_bn', '(চক্ষু বিশেষজ্ঞ ও সার্জন)')">{{ headerText('left_subtitle_bn', '(চক্ষু বিশেষজ্ঞ ও সার্জন)') }}</strong>
+                <span v-for="(line, index) in headerLines('left_details_bn', ['এম.বি.বি.এস (ঢাকা), ডি.ও.এম.এস (ভিয়েনা)', 'এম.এ.এম.এস (ভিয়েনা), জি.ডি.এম (বিএমজে, ইউকে)', 'ফ্যাকো সার্জারীতে বিশেষ প্রশিক্ষণপ্রাপ্ত', 'আহমেদাবাদ, ভারত'])" :key="'left-' + index">{{ line }}</span>
+                <b v-if="headerText('contact_phone', '০১৩০১-২০৬৪৮১')">সিরিয়াল: {{ headerText('contact_phone', '০১৩০১-২০৬৪৮১') }}</b>
+              </div>
+              <div class="letterhead-hospital-bn">
+                <h2 v-if="headerText('center_title_bn', 'পারামিতা চক্ষু হাসপাতাল (প্রাঃ)')">{{ headerText('center_title_bn', 'পারামিতা চক্ষু হাসপাতাল (প্রাঃ)') }}</h2>
+                <span v-if="headerText('center_subtitle_bn', '(সরকার অনুমোদিত)')">{{ headerText('center_subtitle_bn', '(সরকার অনুমোদিত)') }}</span>
+                <span v-if="headerText('registration_no', 'রেজিঃ নং- ৮০৬')">{{ headerText('registration_no', 'রেজিঃ নং- ৮০৬') }}</span>
+                <span v-if="headerText('address_bn', '৩২৫, চরপাড়া, ময়মনসিংহ।')">{{ headerText('address_bn', '৩২৫, চরপাড়া, ময়মনসিংহ।') }}</span>
+                <strong v-if="headerLines('opening_hours_bn', ['রোগী দেখার সময়']).length">{{ headerLines('opening_hours_bn', ['রোগী দেখার সময়'])[0] }}</strong>
+                <span v-for="(line, index) in headerLines('opening_hours_bn', ['রোগী দেখার সময়', 'বিকাল ৩.৩০ মিঃ হতে রাত ৮টা পর্যন্ত', 'শুক্রবার বেলা ১০টা হতে বিকাল ৩টা পর্যন্ত']).slice(1)" :key="'hours-' + index">{{ line }}</span>
+              </div>
+              <div class="letterhead-doctor-en">
+                <h2 v-if="headerText('right_title_en', 'DR. HARI SANKAR DAS')">{{ headerText('right_title_en', 'DR. HARI SANKAR DAS') }}</h2>
+                <strong v-if="headerText('right_subtitle_en', '(Eye Specialist)')">{{ headerText('right_subtitle_en', '(Eye Specialist)') }}</strong>
+                <span v-for="(line, index) in headerLines('right_details_en', ['M.B.B.S (Dhaka), D.O.M.S (Vienna)', 'M.A.M.S (Vienna), G.D.M (BMJ, UK)', 'SPECIALLY TRAINED IN PHACO SURGERY', 'Ahmedabad, India'])" :key="'right-' + index">{{ line }}</span>
+                <b v-if="headerText('contact_phone', '01301-206481')">Serial: {{ headerText('contact_phone', '01301-206481') }}</b>
+                <span v-if="headerText('email', 'sankarh20@gmail.com')">E-mail: {{ headerText('email', 'sankarh20@gmail.com') }}</span>
+              </div>
+            </header>
+            <header v-else class="investigation-letterhead" :style="{ '--header-accent': printHeaderSetting?.accent_color || '#4e7d62' }">
+              <div class="investigation-letterhead-logo">
+                <img v-if="printHeaderSetting?.logo_path" :src="printHeaderSetting.logo_path" alt="Hospital logo" />
+                <Eye v-else :size="34" />
+              </div>
+              <div class="investigation-letterhead-center">
+                <h1 v-if="headerText('center_title_en', 'PARAMITA EYE HOSPITAL (PVT.)')">{{ headerText('center_title_en', 'PARAMITA EYE HOSPITAL (PVT.)') }}</h1>
+                <h1 v-if="headerText('center_title_bn', '')" class="investigation-hospital-title-bn">{{ headerText('center_title_bn', '') }}</h1>
+                <strong v-if="headerText('center_subtitle_bn', 'GOVT. RECOGNISED')">{{ headerText('center_subtitle_bn', 'GOVT. RECOGNISED') }}</strong>
+                <span v-if="headerText('registration_no', 'Reg. No. 406')">{{ headerText('registration_no', 'Reg. No. 406') }}</span>
+                <b v-if="headerText('address_bn', 'CHARPARA, MYMENSINGH.')">{{ headerText('address_bn', 'CHARPARA, MYMENSINGH.') }}</b>
+              </div>
+              <div class="investigation-letterhead-contact">
+                <span>{{ printHeaderSetting ? (printHeaderSetting.contact_phone ? 'Contact:' : '') : 'Contact:' }}</span>
+                <strong v-if="headerText('contact_phone', '01301-206481')">{{ headerText('contact_phone', '01301-206481') }}</strong>
+                <small>PREVIEW COPY</small>
+              </div>
             </header>
 
-            <h2 id="print-preview-title" class="print-document-title">{{ isInvestigationPage ? 'Investigation Request' : 'Consultation & Prescription' }}</h2>
-            <section class="print-patient-grid" aria-label="Patient details">
-              <div><span>Patient</span><strong>{{ appointment?.name || '—' }}</strong></div>
-              <div><span>Age / gender</span><strong>{{ appointment?.age || '—' }} years · {{ appointment?.gender || '—' }}</strong></div>
-              <div><span>Phone</span><strong>{{ appointment?.phone || '—' }}</strong></div>
-              <div><span>Visit date</span><strong>{{ formatDate(appointment?.date) }}</strong></div>
-              <div><span>Serial</span><strong>{{ appointment?.serial_number || route.params.serialNumber }}</strong></div>
-              <div v-if="isInvestigationPage"><span>Order number</span><strong>{{ investigationOrderNumber }}</strong></div>
+            <section v-if="!isInvestigationPage" class="prescription-patient-strip consultation-patient-strip" aria-label="Patient details">
+              <div><span>Name:</span><strong>{{ appointment?.name || '—' }}</strong></div>
+              <div><span>Phone:</span><strong>{{ appointment?.phone || '—' }}</strong></div>
+              <div><span>Age:</span><strong>{{ appointment?.age || '—' }} yrs<span v-if="appointment?.gender"> · {{ appointment.gender }}</span></strong></div>
+              <div><span>Date:</span><strong>{{ formatDate(appointment?.date) }}</strong></div>
+            </section>
+            <section v-else class="prescription-patient-strip investigation-patient-strip" aria-label="Patient details">
+              <div><span>Name:</span><strong>{{ appointment?.name || '—' }}</strong></div>
+              <div><span>Phone:</span><strong>{{ appointment?.phone || '—' }}</strong></div>
+              <div><span>Age:</span><strong>{{ appointment?.age || '—' }} yrs<span v-if="appointment?.gender"> · {{ appointment.gender }}</span></strong></div>
+              <div><span>Date:</span><strong>{{ formatDate(appointment?.date) }}</strong></div>
             </section>
 
             <template v-if="!isInvestigationPage">
@@ -368,6 +407,7 @@ const loading = ref(false)
 const starting = ref(false)
 const errorMessage = ref('')
 const printPreviewOpen = ref(false)
+const printHeaderSetting = ref(null)
 const isInvestigationPage = computed(() => route.name === 'doctor.appointment.investigations')
 const activeClinicalTab = ref('consultation')
 const notes = ref({ complaint: '', eye: '', examination: '', assessment: '', plan: '' })
@@ -421,6 +461,28 @@ onMounted(() => {
   loadAppointment()
   loadClinicalCatalogs()
 })
+
+async function openPrintPreview() {
+  printHeaderSetting.value = null
+  try {
+    const documentType = isInvestigationPage.value ? 'investigation' : 'consultation_prescription'
+    const response = await api.get('/doctor/print-header-settings/' + documentType)
+    printHeaderSetting.value = response.data.data || null
+  } catch {
+    toast.error('Saved print header could not be loaded. The default heading will be shown.')
+  }
+  printPreviewOpen.value = true
+}
+
+function headerText(field, fallback) {
+  if (!printHeaderSetting.value) return fallback
+  return String(printHeaderSetting.value[field] || '').trim()
+}
+
+function headerLines(field, fallback) {
+  if (!printHeaderSetting.value) return fallback
+  return Array.isArray(printHeaderSetting.value[field]) ? printHeaderSetting.value[field].filter((line) => String(line || '').trim()) : []
+}
 
 async function loadAppointment() {
   loading.value = true
@@ -1060,6 +1122,38 @@ function statusLabel(status) {
 .print-preview-actions { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--muted); background: #fff; font-size: 12px; }
 .print-preview-actions > div { display: flex; gap: 8px; }
 .print-document { width: min(210mm, calc(100% - 40px)); min-height: 260mm; margin: 20px auto; padding: 18mm 15mm; color: #172033; background: #fff; box-shadow: 0 5px 22px #0f172a1c; font-family: Arial, sans-serif; font-size: 11px; line-height: 1.45; }
+.prescription-letterhead { display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 10px; padding: 0 0 10px; border-bottom: 2px solid var(--header-accent); }
+.prescription-letterhead > div { min-width: 0; display: flex; flex-direction: column; line-height: 1.35; }
+.letterhead-doctor-bn, .letterhead-hospital-bn { font-family: "Noto Sans Bengali", "Nirmala UI", sans-serif; }
+.letterhead-doctor-bn { align-items: flex-start; }
+.letterhead-doctor-en { align-items: flex-start; }
+.letterhead-hospital-bn { align-items: center; text-align: center; }
+.prescription-letterhead h1, .prescription-letterhead h2 { margin: 0 0 2px; color: #172033; line-height: 1.25; }
+.letterhead-doctor-bn h1 { font-size: 17px; }
+.letterhead-hospital-bn h2 { color: var(--header-accent); font-size: 15px; }
+.letterhead-doctor-en h2 { font-size: 14px; }
+.letterhead-doctor-bn strong, .letterhead-doctor-en strong { color: #a13f45; font-size: 10px; }
+.letterhead-hospital-bn strong { margin-top: 2px; padding: 1px 8px; color: #fff; background: #397d56; font-size: 10px; }
+.prescription-letterhead span, .prescription-letterhead b { font-size: 8px; }
+.prescription-letterhead b { color: #9f3944; }
+.prescription-patient-strip { display: grid; grid-template-columns: 1.5fr .75fr 1fr; margin: 12px 0; border: 1px solid #9ba5b1; background: #f5f7f8; }
+.prescription-patient-strip > div { display: flex; align-items: center; gap: 5px; min-width: 0; padding: 7px 9px; border-right: 1px solid #cbd5e1; }
+.prescription-patient-strip > div:last-child { border-right: 0; }
+.prescription-patient-strip span { color: #475569; font-size: 9px; white-space: nowrap; }
+.prescription-patient-strip strong { overflow-wrap: anywhere; font-size: 10px; }
+.investigation-letterhead { display: grid; grid-template-columns: 52px minmax(0, 1fr) 112px; align-items: center; gap: 12px; padding: 4px 0 10px; border-bottom: 2px solid var(--header-accent); color: var(--header-accent); }
+.investigation-letterhead-logo { display: grid; place-items: center; width: 48px; height: 48px; border: 2px solid var(--header-accent); border-radius: 50%; color: var(--header-accent); }
+.investigation-letterhead-logo img { width: 100%; height: 100%; padding: 5px; border-radius: 50%; object-fit: contain; }
+.investigation-letterhead-center { min-width: 0; display: flex; flex-direction: column; align-items: center; text-align: center; line-height: 1.3; }
+.investigation-letterhead-center h1 { margin: 0 0 3px; color: var(--header-accent); font-size: 20px; font-weight: 800; }
+.investigation-letterhead-center .investigation-hospital-title-bn { font-family: "Noto Sans Bengali", "Nirmala UI", sans-serif; font-size: 16px; }
+.investigation-letterhead-center strong { padding: 2px 12px; color: #fff; background: #448260; font-size: 11px; letter-spacing: .2px; }
+.investigation-letterhead-center span, .investigation-letterhead-center b { color: #365d47; font-size: 10px; }
+.investigation-letterhead-contact { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; background: #eef4ef; color: #365d47; line-height: 1.3; text-align: center; }
+.investigation-letterhead-contact span { font-size: 10px; }
+.investigation-letterhead-contact strong { color: var(--header-accent); font-size: 14px; }
+.investigation-letterhead-contact small { margin-top: 5px; color: #64748b; font-size: 7px; font-weight: 700; letter-spacing: .5px; }
+.investigation-patient-strip, .consultation-patient-strip { grid-template-columns: 1.25fr 1.3fr .85fr 1.1fr; }
 .print-document-header { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 12px; padding-bottom: 15px; border-bottom: 2px solid #5b45e8; }
 .print-brand-mark { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; color: #fff; background: linear-gradient(135deg, #5b45e8, #08a9d0); }
 .print-document-header h1 { margin: 0; color: #172033; font-size: 17px; letter-spacing: .3px; }
@@ -1240,6 +1334,8 @@ function statusLabel(status) {
   .print-preview-sheet { width: auto; max-height: none; overflow: visible; border-radius: 0; background: #fff; box-shadow: none; }
   .print-preview-actions { display: none; }
   .print-document { width: auto; min-height: 0; margin: 0; padding: 0; box-shadow: none; }
+  .prescription-letterhead { grid-template-columns: 1fr 1fr 1fr; }
+  .investigation-letterhead { grid-template-columns: 48px minmax(0, 1fr) 105px; }
   .print-section, .print-table tr, .print-patient-grid, .print-detail { break-inside: avoid; }
 }
 </style>
