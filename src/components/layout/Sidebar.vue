@@ -99,6 +99,7 @@ const manageMenu = computed(() => auth.role !== 'admin' ? [] : [
   { to: '/admin/staff', label: 'Staff', icon: UserRound },
   { to: '/admin/users', label: 'Users', icon: UserPlus },
   { to: '/admin/investigations', label: 'Investigations', icon: FileText },
+  { to: '/admin/complaints', label: 'Complaints', icon: FileText },
   { to: '/admin/dosages', label: 'Dosages', icon: Pill },
   { to: '/admin/prescription-instruction-options', label: 'Prescription Options', icon: FileText },
   { to: '/admin/print-header-settings', label: 'Print Header Settings', icon: FileText },

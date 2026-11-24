@@ -26,6 +26,7 @@ const routes = [
       { path: 'patients', redirect: '/admin/appointments' },
       { path: 'roles', name: 'admin.roles', component: () => import('../pages/Roles.vue'), meta: { title: 'Roles & Permissions' } },
       { path: 'investigations', name: 'admin.investigations', component: () => import('../pages/Investigations.vue'), meta: { title: 'Investigations' } },
+      { path: 'complaints', name: 'admin.complaints', component: () => import('../pages/Complaints.vue'), meta: { title: 'Complaints' } },
       { path: 'dosages', name: 'admin.dosages', component: () => import('../pages/Dosages.vue'), meta: { title: 'Dosages' } },
       { path: 'prescription-instruction-options', name: 'admin.prescription-instruction-options', component: () => import('../pages/PrescriptionInstructionOptions.vue'), meta: { title: 'Prescription Instruction Options' } },
       { path: 'print-header-settings', name: 'admin.print-header-settings', component: () => import('../pages/PrintHeaderSettings.vue'), meta: { title: 'Print Header Settings' } },

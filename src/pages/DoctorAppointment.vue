@@ -50,7 +50,23 @@
           <div><h2>Consultation notes (পরামর্শের নোট)</h2><p>Record the patient’s symptoms and examination findings (রোগীর লক্ষণ ও পরীক্ষার পর্যবেক্ষণ লিখুন)।</p></div>
           </div>
           <div class="form-grid">
-            <label class="field full"><span>Chief complaint (প্রধান অভিযোগ) <b>*</b></span><textarea v-model="notes.complaint" rows="3" placeholder="What problem brought the patient in today?"></textarea></label>
+            <div class="field full complaint-picker">
+              <label>Select Complaint</label>
+              <div id="complaint-picker-menu" class="complaint-picker-menu">
+                <input v-model="complaintSearch" class="complaint-picker-search" type="search" placeholder="Search complaints..." aria-label="Search complaints" />
+                <div class="complaint-picker-list">
+                  <label v-for="complaint in filteredComplaintOptions" :key="complaint.id" class="complaint-picker-option">
+                    <input type="checkbox" :checked="selectedComplaintIds.includes(Number(complaint.id))" @change="toggleComplaint(complaint, $event.target.checked)" />
+                    <span>{{ complaint.name }}</span>
+                  </label>
+                  <p v-if="!filteredComplaintOptions.length" class="complaint-picker-empty">{{ complaintOptions.length ? 'No complaints match your search.' : 'No active complaints are available.' }}</p>
+                </div>
+              </div>
+              <div v-if="selectedComplaints.length" class="selected-complaint-list" aria-label="Selected complaints">
+                <span v-for="complaint in selectedComplaints" :key="complaint.id" class="selected-complaint-chip">{{ complaint.name }}<button type="button" :aria-label="'Remove ' + complaint.name" @click="toggleComplaint(complaint, false)"><X :size="13" /></button></span>
+              </div>
+            </div>
+            <label class="field full"><span>Chief complaint (প্রধান অভিযোগ) <b>*</b></span><textarea v-model="chiefComplaintText" rows="3" placeholder="What problem brought the patient in today?"></textarea></label>
             <div class="clinical-vision-row">
               <label class="field"><span>Affected eye (আক্রান্ত চোখ)</span><select v-model="notes.eye"><option value="Both">Both eyes</option><option value="Right">Right eye</option><option value="Left">Left eye</option><option value="Not specified">Not specified</option></select></label>
               <label class="field">
@@ -320,7 +336,7 @@
             <section class="print-section">
               <h3>Consultation (পরামর্শ)</h3>
               <div class="print-detail-grid">
-                <div class="print-detail wide"><span>Chief complaint (প্রধান অভিযোগ)</span><p>{{ notes.complaint || '—' }}</p></div>
+                <div class="print-detail wide"><span>Chief complaint (প্রধান অভিযোগ)</span><p class="chief-complaint-print">{{ chiefComplaintText || '—' }}</p></div>
                 <div class="print-detail"><span>Affected eye (আক্রান্ত চোখ)</span><p>{{ notes.eye === 'Both' ? 'Both eyes' : notes.eye }}</p></div>
                 <div class="print-detail"><span>Visual acuity (দৃষ্টিশক্তি)</span><p>{{ visualAcuityText || '—' }}</p></div>
                 <div class="print-detail wide"><span>Examination findings (পরীক্ষার পর্যবেক্ষণ)</span><p>{{ notes.examination || '—' }}</p></div>
@@ -411,6 +427,25 @@ const printHeaderSetting = ref(null)
 const isInvestigationPage = computed(() => route.name === 'doctor.appointment.investigations')
 const activeClinicalTab = ref('consultation')
 const notes = ref({ complaint: '', eye: '', examination: '', assessment: '', plan: '' })
+const complaintOptions = ref([])
+const selectedComplaintIds = ref([])
+const complaintSearch = ref('')
+const selectedComplaints = computed(() => complaintOptions.value.filter((complaint) => selectedComplaintIds.value.includes(Number(complaint.id))))
+const filteredComplaintOptions = computed(() => {
+  const query = complaintSearch.value.trim().toLowerCase()
+  return complaintOptions.value.filter((complaint) => String(complaint.name || '').toLowerCase().includes(query))
+})
+const chiefComplaintText = computed({
+  get() {
+    const selectedNames = selectedComplaints.value.map((complaint) => complaint.name)
+    const freeLines = notes.value.complaint.split(/\r?\n/).filter((line) => line.trim() && !selectedNames.includes(line.trim()))
+    return [...selectedNames, ...freeLines].join('\n')
+  },
+  set(value) {
+    const selectedNames = new Set(selectedComplaints.value.map((complaint) => complaint.name))
+    notes.value.complaint = String(value || '').split(/\r?\n/).filter((line) => !selectedNames.has(line.trim())).join('\n').trim()
+  },
+})
 const visualAcuity = ref({ right: '', left: '', rightCustom: '', leftCustom: '', additional: '' })
 const visualAcuityText = computed(() => {
   const right = visualAcuity.value.right === 'custom' ? visualAcuity.value.rightCustom.trim() : visualAcuity.value.right
@@ -503,16 +538,19 @@ async function loadClinicalCatalogs() {
   catalogError.value = ''
   try {
     const { data: catalogResponse } = await api.get('/doctor/clinical-catalogs')
+    complaintOptions.value = catalogResponse.data?.complaints || []
     medicineOptions.value = catalogResponse.data?.medicines || []
     dosageOptions.value = catalogResponse.data?.dosages || []
     prescriptionInstructionOptions.value = catalogResponse.data?.prescription_instruction_options || []
     investigationOptions.value = catalogResponse.data?.investigations || []
   } catch (error) {
-    medicineOptions.value = []
+    complaintOptions.value = []
+    selectedComplaintIds.value = []
     dosageOptions.value = []
+    medicineOptions.value = []
     prescriptionInstructionOptions.value = []
     investigationOptions.value = []
-    catalogError.value = error.response?.data?.message || 'Medicine and investigation catalogs could not be loaded.'
+    catalogError.value = error.response?.data?.message || 'Clinical catalogs could not be loaded.'
   } finally {
     catalogLoading.value = false
   }
@@ -539,6 +577,16 @@ function createMedicineDraft() {
 function openPrescriptionTab() {
   activeClinicalTab.value = 'prescription'
   if (!medicines.value.length) medicines.value = [createMedicineDraft()]
+}
+
+function toggleComplaint(complaint, selected) {
+  const complaintId = Number(complaint.id)
+  const selectedIds = new Set(selectedComplaintIds.value)
+  const lines = notes.value.complaint.split(/\r?\n/).filter((line) => line.trim() !== complaint.name)
+  notes.value.complaint = lines.join('\n').trim()
+  if (selected) selectedIds.add(complaintId)
+  else selectedIds.delete(complaintId)
+  selectedComplaintIds.value = [...selectedIds]
 }
 
 function addMedicine() {
@@ -773,7 +821,7 @@ function medicineName(id) {
 function hydrateClinicalData() {
   const consultation = appointment.value?.consultation
   notes.value = {
-    complaint: consultation?.chief_complaint || '',
+    complaint: (consultation?.chief_complaint || '').split(/\r?\n/).filter((line) => !selectedComplaints.value.some((complaint) => complaint.name === line.trim())).join('\n').trim(),
     eye: consultation?.affected_eye || '',
     examination: consultation?.examination_findings || '',
     assessment: consultation?.assessment || '',
@@ -861,12 +909,13 @@ async function saveCurrentSection() {
 }
 
 async function saveConsultation() {
-  if (!notes.value.complaint.trim()) {
+  const complaintText = chiefComplaintText.value.trim()
+  if (!complaintText) {
     toast.error('Chief complaint is required.')
     return
   }
   await saveSection('consultation', {
-    chief_complaint: notes.value.complaint,
+    chief_complaint: complaintText,
     affected_eye: notes.value.eye || null,
     visual_acuity: visualAcuityText.value || null,
     examination_findings: notes.value.examination || null,
@@ -910,7 +959,7 @@ async function saveInvestigationOrder() {
 
 function consultationPayload() {
   return {
-    chief_complaint: notes.value.complaint || null,
+    chief_complaint: chiefComplaintText.value.trim() || null,
     affected_eye: notes.value.eye || null,
     visual_acuity: visualAcuityText.value || null,
     examination_findings: notes.value.examination || null,
@@ -1181,6 +1230,7 @@ function statusLabel(status) {
 .print-detail { min-width: 0; }
 .print-detail.wide { grid-column: 1 / -1; }
 .print-detail p { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chief-complaint-print { white-space: pre-line; }
 .print-table { width: 100%; border-collapse: collapse; font-size: 9px; }
 .print-table th, .print-table td { padding: 6px 5px; border: 1px solid #dbe2ed; text-align: left; vertical-align: top; }
 .print-table th { color: #475569; background: #f8fafc; font-size: 8px; text-transform: uppercase; }
@@ -1279,6 +1329,18 @@ function statusLabel(status) {
 .medicine-create-error-summary { margin: 14px 0 0; padding: 10px 12px; border: 1px solid #fecaca; border-radius: 9px; color: #991b1b; background: #fff7f7; font-size: 12px; }
 .medicine-create-footer { display: flex; justify-content: flex-end; gap: 9px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
 .medicine-instructions { min-width: 0; }
+.complaint-picker { min-width: 0; }
+.complaint-picker-menu { width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 11px; background: #fff; }
+.complaint-picker-search { display: block; box-sizing: border-box; width: 100%; min-height: 38px; margin: 0 0 7px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; }
+.complaint-picker-list { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-auto-rows: 40px; gap: 4px 8px; max-height: 172px; min-height: 172px; overflow: auto; align-content: start; }
+.complaint-picker-option { display: flex; width: 100%; min-height: 40px; align-items: center; gap: 10px; padding: 7px 9px; border-radius: 7px; color: var(--text); cursor: pointer; }
+.complaint-picker-option:hover { background: #f5f3ff; }
+.complaint-picker-option input { flex: 0 0 16px; width: 16px; min-width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--primary); }
+.complaint-picker-option span { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 13px; line-height: 1.35; }
+.complaint-picker-empty { margin: 0; padding: 11px 8px; color: var(--muted); font-size: 12px; }
+.selected-complaint-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.selected-complaint-chip { display: inline-flex; align-items: center; gap: 5px; padding: 4px 7px 4px 9px; border-radius: 999px; color: #5141bd; background: #f0edff; font-size: 11px; }
+.selected-complaint-chip button { display: grid; place-items: center; padding: 1px; border: 0; color: inherit; background: transparent; cursor: pointer; }
 .icon-button { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: white; cursor: pointer; }
 .icon-button.danger { color: #dc2626; }
 .add-medicine { margin-top: 14px; border-color: #c4b5fd; color: #5b45e8; background: #f5f3ff; }
@@ -1328,6 +1390,8 @@ function statusLabel(status) {
 .appointment-error { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 12px 15px; border: 1px solid #fecaca; border-radius: 12px; color: #991b1b; background: #fff7f7; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (max-width: 1080px) { .complaint-picker-list { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 560px) { .complaint-picker-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 1080px) { .workspace-grid { grid-template-columns: minmax(0, 1fr) 275px; } .medicine-primary-fields { grid-template-columns: repeat(4, minmax(0, 1fr)); } .medicine-name { grid-column: span 2; } }
 @media (max-width: 760px) { .patient-banner { flex-wrap: wrap; } .patient-banner-detail { padding-left: 10px; } .patient-serial { margin-left: 0; text-align: left; } .workspace-grid { grid-template-columns: 1fr; } .side-column { grid-template-columns: 1fr; } .workspace-footer { position: static; align-items: stretch; flex-direction: column; } .workspace-footer > div { justify-content: flex-end; } }
 @media (max-width: 760px) { .investigation-edit-row { grid-template-columns: 1fr 1fr; } .investigation-edit-row .field:first-child { grid-column: 1 / -1; } .investigation-edit-actions { grid-column: 1 / -1; justify-content: flex-end; } }
