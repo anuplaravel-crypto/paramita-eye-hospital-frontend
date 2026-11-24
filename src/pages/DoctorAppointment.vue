@@ -38,7 +38,7 @@
       <nav class="consultation-tabs" aria-label="Doctor visit pages">
         <RouterLink v-if="isInvestigationPage" class="visit-page-link" :to="{ name: 'doctor.appointment', params: { serialNumber: route.params.serialNumber } }"><Stethoscope :size="17" /> Consultation & Prescription</RouterLink>
         <button v-if="!isInvestigationPage" class="visit-page-link visit-tab-button" :class="{ active: activeClinicalTab === 'consultation' }" type="button" role="tab" :aria-selected="activeClinicalTab === 'consultation'" @click="activeClinicalTab = 'consultation'"><Stethoscope :size="17" /> Consultation (পরামর্শ)</button>
-        <button v-if="!isInvestigationPage" class="visit-page-link visit-tab-button" :class="{ active: activeClinicalTab === 'prescription' }" type="button" role="tab" :aria-selected="activeClinicalTab === 'prescription'" @click="activeClinicalTab = 'prescription'"><Pill :size="17" /> Prescription</button>
+        <button v-if="!isInvestigationPage" class="visit-page-link visit-tab-button" :class="{ active: activeClinicalTab === 'prescription' }" type="button" role="tab" :aria-selected="activeClinicalTab === 'prescription'" @click="openPrescriptionTab"><Pill :size="17" /> Prescription</button>
         <RouterLink class="visit-page-link" :class="{ active: isInvestigationPage }" :to="{ name: 'doctor.appointment.investigations', params: { serialNumber: route.params.serialNumber } }"><FlaskConical :size="17" /> Investigation & follow-up</RouterLink>
       </nav>
 
@@ -532,12 +532,22 @@ async function startPrescription() {
   }
 }
 
+function createMedicineDraft() {
+  return { id: null, key: `new-${Date.now()}-${Math.random()}`, medicine_id: '', medicineSearch: '', medicineSearchOpen: false, strength: '', dose: '', frequency: '', duration: '', meal_timing: '', route: '', eye_side: '', instructions: '' }
+}
+
+function openPrescriptionTab() {
+  activeClinicalTab.value = 'prescription'
+  if (!medicines.value.length) medicines.value = [createMedicineDraft()]
+}
+
 function addMedicine() {
-  medicines.value.push({ id: null, key: `new-${Date.now()}-${Math.random()}`, medicine_id: '', medicineSearch: '', medicineSearchOpen: false, strength: '', dose: '', frequency: '', duration: '', meal_timing: '', route: '', eye_side: '', instructions: '' })
+  medicines.value.push(createMedicineDraft())
 }
 
 function removeMedicine(key) {
-  medicines.value = medicines.value.filter((item) => item.key !== key)
+  const remainingMedicines = medicines.value.filter((item) => item.key !== key)
+  medicines.value = remainingMedicines.length ? remainingMedicines : [createMedicineDraft()]
 }
 
 function addInvestigation() {
@@ -820,7 +830,7 @@ function loadPrescriptionStage() {
   const consultation = appointment.value?.consultation
   const prescription = consultation?.prescriptions?.filter((item) => item.stage === prescriptionStage.value).at(-1)
   prescriptionAdvice.value = prescription?.notes || ''
-  medicines.value = (prescription?.items || []).map((item) => ({
+  const savedMedicines = (prescription?.items || []).map((item) => ({
     id: item.id,
     key: `saved-${item.id}`,
     medicine_id: item.medicine_id,
@@ -837,6 +847,7 @@ function loadPrescriptionStage() {
     instructions: item.instructions || '',
     quantity: item.quantity,
   }))
+  medicines.value = savedMedicines.length ? savedMedicines : [createMedicineDraft()]
 }
 
 async function saveCurrentSection() {
@@ -1270,7 +1281,8 @@ function statusLabel(status) {
 .medicine-instructions { min-width: 0; }
 .icon-button { width: 31px; height: 31px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; color: var(--muted); background: white; cursor: pointer; }
 .icon-button.danger { color: #dc2626; }
-.add-medicine { margin-top: 14px; }
+.add-medicine { margin-top: 14px; border-color: #c4b5fd; color: #5b45e8; background: #f5f3ff; }
+.add-medicine:hover:not(:disabled) { border-color: #7c3aed; color: #fff; background: #6d3ce5; }
 .followup-field { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--border); }
 .linked-receipt { display: flex; align-items: center; gap: 11px; padding: 13px; border: 1px solid #bae6fd; border-radius: 12px; color: #0284c7; background: #f0f9ff; }
 .linked-receipt div { display: grid; gap: 3px; }
