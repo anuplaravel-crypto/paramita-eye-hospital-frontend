@@ -77,6 +77,7 @@
                   <button class="btn btn-outline btn-sm" type="button" @click="openDialog(medicine, 'edit')"><Pencil :size="15" /> Edit</button>
                   <button v-if="medicine.is_active" class="icon-btn danger-action" type="button" title="Deactivate medicine" :aria-label="'Deactivate ' + medicine.name" :disabled="busyId === medicine.id" @click="requestMedicineStatus(medicine, false)"><Ban :size="16" /></button>
                   <button v-else class="icon-btn activate-action" type="button" title="Activate medicine" :aria-label="'Activate ' + medicine.name" :disabled="busyId === medicine.id" @click="requestMedicineStatus(medicine, true)"><Check :size="16" /></button>
+                  <button class="icon-btn delete-action" type="button" :title="medicine.prescription_items_count ? 'Medicine has prescription history and cannot be deleted' : 'Delete medicine'" :aria-label="'Delete ' + medicine.name" :disabled="busyId === medicine.id || Number(medicine.prescription_items_count || 0) > 0" @click="requestMedicineDelete(medicine)"><Trash2 :size="16" /></button>
                 </div>
               </td>
             </tr>
@@ -201,13 +202,30 @@
         </section>
       </div>
     </Teleport>
+
+    <Teleport to="body">
+      <div v-if="deleteDialogOpen" class="dialog-backdrop status-backdrop" @click.self="closeDeleteDialog" @keydown.esc="closeDeleteDialog">
+        <section class="status-confirm-dialog card" role="alertdialog" aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
+          <div class="status-confirm-icon status-confirm-deactivate"><Trash2 :size="22" /></div>
+          <h2 id="delete-dialog-title">Delete medicine permanently?</h2>
+          <p id="delete-dialog-description">This will permanently remove this medicine from the catalog. Medicines with prescription history must be deactivated instead.</p>
+          <strong class="status-confirm-name">{{ pendingDelete?.name }}</strong>
+          <footer class="status-confirm-actions">
+            <button class="btn btn-outline" type="button" :disabled="busyId !== null" @click="closeDeleteDialog">Cancel</button>
+            <button class="btn btn-danger" type="button" :disabled="busyId !== null" @click="confirmMedicineDelete">
+              {{ busyId !== null ? 'Deleting...' : 'Delete medicine' }}
+            </button>
+          </footer>
+        </section>
+      </div>
+    </Teleport>
   </section>
 </template>
 
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
-import { Ban, Check, Eye, Pill, Pencil, Plus, Search, X } from '@lucide/vue'
+import { Ban, Check, Eye, Pill, Pencil, Plus, Search, Trash2, X } from '@lucide/vue'
 import api from '../api/axios'
 
 const medicines = ref([])
@@ -226,6 +244,8 @@ const pageSize = ref(10)
 const dialogOpen = ref(false)
 const statusDialogOpen = ref(false)
 const pendingStatus = ref(null)
+const deleteDialogOpen = ref(false)
+const pendingDelete = ref(null)
 const dialogMode = ref('create')
 const editingMedicine = ref(null)
 const fieldErrors = ref({})
@@ -389,6 +409,35 @@ function closeStatusDialog() {
   pendingStatus.value = null
 }
 
+function requestMedicineDelete(medicine) {
+  if (Number(medicine.prescription_items_count || 0) > 0) return
+  pendingDelete.value = medicine
+  deleteDialogOpen.value = true
+}
+
+function closeDeleteDialog() {
+  if (busyId.value !== null) return
+  deleteDialogOpen.value = false
+  pendingDelete.value = null
+}
+
+async function confirmMedicineDelete() {
+  if (!pendingDelete.value || busyId.value !== null) return
+  const medicine = pendingDelete.value
+  busyId.value = medicine.id
+  try {
+    await api.delete('/admin/medicines/' + medicine.id)
+    toast.success('Medicine deleted successfully.')
+    deleteDialogOpen.value = false
+    pendingDelete.value = null
+    await loadMedicines()
+  } catch (error) {
+    toast.error(error.response?.data?.message || 'The medicine could not be deleted.')
+  } finally {
+    busyId.value = null
+  }
+}
+
 async function confirmMedicineStatus() {
   if (!pendingStatus.value || busyId.value !== null) return
   const { medicine, isActive } = pendingStatus.value
@@ -397,7 +446,7 @@ async function confirmMedicineStatus() {
     if (isActive) {
       await api.patch('/admin/medicines/' + medicine.id, { is_active: true })
     } else {
-      await api.delete('/admin/medicines/' + medicine.id)
+      await api.patch('/admin/medicines/' + medicine.id, { is_active: false })
     }
     toast.success(isActive ? 'Medicine activated successfully.' : 'Medicine deactivated successfully.')
     statusDialogOpen.value = false
@@ -436,6 +485,8 @@ onMounted(() => {
 .medicine-actions { display: flex; justify-content: flex-end; align-items: center; gap: 6px; }
 .danger-action { color: #dc2626; }
 .danger-action:hover { background: #fef2f2; color: #b91c1c; }
+.delete-action { color: #dc2626; }
+.delete-action:hover:not(:disabled) { background: #fee2e2; color: #991b1b; }
 .activate-action { color: #059669; }
 .activate-action:hover { background: #ecfdf5; }
 .medicine-actions button:disabled { opacity: .55; cursor: wait; }

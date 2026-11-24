@@ -50,6 +50,7 @@
           <thead>
             <tr>
               <th v-if="activeType === 'dose' || activeType === 'meal_timing'">Dosage form</th>
+              <th v-if="activeType === 'dose'">Route</th>
               <th>{{ currentTab.label }}</th>
               <th>Status</th>
               <th class="actions-heading">Actions</th>
@@ -58,6 +59,7 @@
           <tbody>
             <tr v-for="option in filteredOptions" :key="option.id">
               <td v-if="activeType === 'dose' || activeType === 'meal_timing'"><strong>{{ option.dosage_form?.name || 'Unknown dosage form' }}</strong></td>
+              <td v-if="activeType === 'dose'">{{ option.route || '—' }}</td>
               <td class="option-value">{{ optionValueLabel(option) }}</td>
               <td><span class="status-pill" :class="option.is_active ? 'status-active' : 'status-inactive'">{{ option.is_active ? 'Active' : 'Inactive' }}</span></td>
               <td>
@@ -89,6 +91,16 @@
                   <option v-for="dosage in availableDosages" :key="dosage.id" :value="String(dosage.id)">{{ dosage.name }}</option>
                 </select>
                 <small v-if="fieldErrors.dosage_form_id" id="option-dosage-form-error" class="field-error" role="alert">{{ fieldErrors.dosage_form_id }}</small>
+              </div>
+
+              <div v-if="activeType === 'dose'" class="field">
+                <label for="option-route">Route <span class="required">*</span></label>
+                <select id="option-route" v-model="form.route" class="input" :class="{ 'input-invalid': fieldErrors.route }" :disabled="readOnly" required :aria-invalid="Boolean(fieldErrors.route)" :aria-describedby="fieldErrors.route ? 'option-route-error' : undefined">
+                  <option value="">Select a route</option>
+                  <option value="Oral">Oral</option>
+                  <option value="Ophthalmic">Ophthalmic</option>
+                </select>
+                <small v-if="fieldErrors.route" id="option-route-error" class="field-error" role="alert">{{ fieldErrors.route }}</small>
               </div>
 
               <div class="field">
@@ -143,7 +155,7 @@ const dialogOpen = ref(false)
 const dialogMode = ref('create')
 const editingOption = ref(null)
 const fieldErrors = ref({})
-const form = reactive({ dosage_form_id: '', dose: '', frequency: '', duration: '', instruction: '', meal_timing: '', sort_order: 0, is_active: true })
+const form = reactive({ dosage_form_id: '', route: '', dose: '', frequency: '', duration: '', instruction: '', meal_timing: '', sort_order: 0, is_active: true })
 
 const currentTab = computed(() => tabs.find((tab) => tab.type === activeType.value) || tabs[0])
 const activeDosages = computed(() => dosages.value.filter((dosage) => dosage.is_active))
@@ -161,7 +173,7 @@ const filteredOptions = computed(() => {
   const query = search.value.trim().toLowerCase()
   return options.value
     .filter((option) => option.option_type === activeType.value)
-    .filter((option) => [option.dosage_form?.name, optionValueLabel(option)].some((value) => String(value || '').toLowerCase().includes(query)))
+    .filter((option) => [option.dosage_form?.name, option.route, optionValueLabel(option)].some((value) => String(value || '').toLowerCase().includes(query)))
 })
 const readOnly = computed(() => dialogMode.value === 'view')
 const dialogTitle = computed(() => readOnly.value ? 'View ' + currentTab.value.label + ' Option' : editingOption.value ? 'Edit ' + currentTab.value.label + ' Option' : 'Create ' + currentTab.value.label + ' Option')
@@ -206,7 +218,7 @@ async function loadPageData() {
 function resetForm() {
   Object.assign(form, {
     dosage_form_id: activeDosages.value[0] ? String(activeDosages.value[0].id) : '',
-    dose: '', frequency: '', duration: '', instruction: '', meal_timing: '',
+    route: '', dose: '', frequency: '', duration: '', instruction: '', meal_timing: '',
     sort_order: typeCounts.value[activeType.value] || 0,
     is_active: true,
   })
@@ -246,6 +258,7 @@ async function saveOption() {
     const payload = {
       option_type: activeType.value,
       dosage_form_id: ['dose', 'meal_timing'].includes(activeType.value) ? Number(form.dosage_form_id) : null,
+      route: activeType.value === 'dose' ? form.route : null,
       dose: activeType.value === 'dose' ? form.dose : null,
       frequency: activeType.value === 'frequency' ? form.frequency : null,
       duration: activeType.value === 'duration' ? form.duration : null,

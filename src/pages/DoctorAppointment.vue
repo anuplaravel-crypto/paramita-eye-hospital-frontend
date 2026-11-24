@@ -612,27 +612,24 @@ function selectedMedicine(row) {
 }
 
 function doseOptionsFor(row) {
-  const dosageFormId = selectedMedicine(row)?.dosage_form_id
-  if (!dosageFormId) return []
-  return prescriptionInstructionOptions.value.filter((option) => option.option_type === 'dose' && Number(option.dosage_form_id) === Number(dosageFormId))
+  const medicine = selectedMedicine(row)
+  const dosageFormId = medicine?.dosage_form_id
+  const route = String(medicine?.route || '').trim().toLowerCase()
+  if (!dosageFormId || !route) return []
+
+  return prescriptionInstructionOptions.value.filter((option) =>
+    option.option_type === 'dose'
+      && Number(option.dosage_form_id) === Number(dosageFormId)
+      && String(option.route || '').trim().toLowerCase() === route,
+  )
 }
 
 function showMealTiming(row) {
-  const medicine = selectedMedicine(row)
-  const dosageFormId = medicine?.dosage_form_id
-  const dosageName = dosageOptions.value.find((dosage) => Number(dosage.id) === Number(dosageFormId))?.name?.trim().toLowerCase()
-  if (['tablet', 'capsule', 'syrup'].includes(dosageName)) return true
-  const route = String(medicine?.route || '').trim().toLowerCase()
-  return ['suspension', 'powder for suspension'].includes(dosageName) && route === 'oral'
+  return String(selectedMedicine(row)?.route || '').trim().toLowerCase() === 'oral'
 }
 
 function showEyeSide(row) {
-  const medicine = selectedMedicine(row)
-  const dosageFormId = medicine?.dosage_form_id
-  const dosageName = dosageOptions.value.find((dosage) => Number(dosage.id) === Number(dosageFormId))?.name?.trim().toLowerCase()
-  const route = String(medicine?.route || '').trim().toLowerCase()
-  if (['suspension', 'powder for suspension'].includes(dosageName) && route === 'oral') return false
-  return ['eye drops', 'eye drop', 'eye gel', 'eye ointment', 'suspension', 'powder for suspension'].includes(dosageName)
+  return String(selectedMedicine(row)?.route || '').trim().toLowerCase() === 'ophthalmic'
 }
 
 function mealTimingOptionsFor(row) {
